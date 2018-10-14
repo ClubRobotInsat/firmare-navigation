@@ -22,7 +22,9 @@ extern crate qei;
 use cortex_m::Peripherals as CortexPeripherals;
 
 use bluepill_hal::delay::Delay; //  Delay timer.
-use bluepill_hal::prelude::*;   //  Define HAL traits.
+use bluepill_hal::gpio::PushPull;
+use bluepill_hal::prelude::*; //  Define HAL traits.
+use bluepill_hal::pwm::{Pwm, C3};
 use bluepill_hal::qei::Qei;
 use bluepill_hal::serial::Event::Rxne;
 use bluepill_hal::serial::Serial;
@@ -37,9 +39,13 @@ use cortex_m_semihosting::hio; //  For displaying messages on the debug console.
 
 use embedded_hal::Direction;
 
+use pid_control::{Controller, DerivativeMode, PIDController};
+
 use f103::Interrupt;
 
 use qei::QeiManager;
+
+type PIDControllerf = PIDController<f64>;
 
 //  Black Pill starts execution at function main().
 entry!(main);
@@ -49,15 +55,42 @@ type QeiPins = (
     bluepill_hal::gpio::gpiob::PB7<bluepill_hal::gpio::Input<bluepill_hal::gpio::Floating>>,
 );
 
+type DirPin =
+    bluepill_hal::gpio::gpiob::PB9<bluepill_hal::gpio::Output<bluepill_hal::gpio::PushPull>>;
+
 static mut QEIM: Option<QeiManager<Qei<bluepill_hal::stm32f103xx::TIM4, QeiPins>>> = None;
+static mut PID: Option<PIDController<f64>> = None;
+static mut PWM: Option<Pwm<stm32f103xx::TIM3, C3>> = None;
+static mut DIR: Option<DirPin> = None;
+static mut CONSIGNE: u16 = 0;
 
 fn tim2_interrupt() {
     // Clear interrupt pending flag;
     unsafe {
         (*f103::TIM2::ptr()).sr.modify(|_, w| w.uif().clear_bit());
     };
-    unsafe {
+    let cnt = unsafe {
         QEIM.as_mut().unwrap().sample_unwrap();
+        QEIM.as_mut().unwrap().count()
+    };
+    let consigne = unsafe {
+        let mut pid = PID.as_mut().unwrap();
+        pid.update(cnt as f64, 0.001)
+    };
+    let pwm = unsafe { PWM.as_mut().unwrap() };
+    let dir = unsafe { DIR.as_mut().unwrap() };
+    if consigne < 0.0 {
+        unsafe {
+            CONSIGNE = (-2.0 * consigne * 65535.0) as u16;
+            pwm.set_duty(CONSIGNE);
+            dir.set_low();
+        }
+    } else {
+        unsafe {
+            CONSIGNE = (2.0 * consigne * 65535.0) as u16;
+            pwm.set_duty(CONSIGNE);
+            dir.set_low();
+        }
     }
 }
 
@@ -88,6 +121,11 @@ fn main() -> ! {
 
     let pb6 = gpiob.pb6;
     let pb7 = gpiob.pb7;
+    let pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
+    unsafe {
+        DIR = Some(pb9);
+    }
+
     let mut tim2 =
         bluepill_hal::timer::Timer::tim2(bluepill.TIM2, 1000.hz(), clocks, &mut rcc.apb1);
     let qei = Qei::tim4(bluepill.TIM4, (pb6, pb7), &mut afio.mapr, &mut rcc.apb1);
@@ -96,7 +134,7 @@ fn main() -> ! {
     }
 
     //  Create a delay timer from the RCC clocks.
-    let _delay = Delay::new(cortex.SYST, clocks);
+    let mut delay = Delay::new(cortex.SYST, clocks);
     let (mut pwm_pb0, _) = tim3.pwm(
         (pb0, pb1),
         &mut afio.mapr,
@@ -104,14 +142,34 @@ fn main() -> ! {
         clocks,
         &mut rcc.apb1,
     );
-
     pwm_pb0.enable();
+
+    unsafe {
+        PWM = Some(pwm_pb0);
+    }
+
+    {
+        let mut pid: PIDController<f64> = PIDControllerf::new(0.0000006, 0.0000000, 0.000000);
+        pid.out_min = -0.5;
+        pid.out_max = 0.5;
+        pid.i_min = -0.0004;
+        pid.i_max = 0.0004;
+        pid.set_target(5632.0);
+        unsafe {
+            PID = Some(pid);
+        }
+    }
+
     nvic.enable(Interrupt::TIM2);
     tim2.listen(bluepill_hal::timer::Event::Update);
     loop {
-        writeln!(debug_out, "Count : {}", unsafe {
-            QEIM.as_mut().unwrap().count()
-        })
+        writeln!(
+            debug_out,
+            "Count : {}, Target : {}, Consigne {}",
+            unsafe { QEIM.as_mut().unwrap().count() as f64 },
+            unsafe { PID.as_mut().unwrap().target() },
+            unsafe { CONSIGNE },
+        )
         .unwrap();
     }
 }
