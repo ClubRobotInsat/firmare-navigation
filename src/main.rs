@@ -89,7 +89,7 @@ fn tim2_interrupt() {
         unsafe {
             CONSIGNE = (2.0 * consigne * 65535.0) as u16;
             pwm.set_duty(CONSIGNE);
-            dir.set_low();
+            dir.set_high();
         }
     }
 }
@@ -149,12 +149,14 @@ fn main() -> ! {
     }
 
     {
-        let mut pid: PIDController<f64> = PIDControllerf::new(0.0000006, 0.0000000, 0.000000);
+        // K0 = 0.000004
+        let mut pid: PIDController<f64> = PIDControllerf::new(0.000006, 0.00, 0.000000);
         pid.out_min = -0.5;
         pid.out_max = 0.5;
         pid.i_min = -0.0004;
         pid.i_max = 0.0004;
         pid.set_target(5632.0);
+        pid.d_mode = DerivativeMode::OnError;
         unsafe {
             PID = Some(pid);
         }
@@ -163,6 +165,7 @@ fn main() -> ! {
     nvic.enable(Interrupt::TIM2);
     tim2.listen(bluepill_hal::timer::Event::Update);
     loop {
+        /*
         writeln!(
             debug_out,
             "Count : {}, Target : {}, Consigne {}",
@@ -171,6 +174,7 @@ fn main() -> ! {
             unsafe { CONSIGNE },
         )
         .unwrap();
+        */
     }
 }
 
