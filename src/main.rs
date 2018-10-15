@@ -18,6 +18,7 @@ extern crate nb;
 extern crate embedded_hal;
 extern crate pid_control;
 extern crate qei;
+extern crate arrayvec;
 
 use cortex_m::Peripherals as CortexPeripherals;
 
@@ -44,6 +45,9 @@ use pid_control::{Controller, DerivativeMode, PIDController};
 use f103::Interrupt;
 
 use qei::QeiManager;
+
+use arrayvec::ArrayString;
+
 
 type PIDControllerf = PIDController<f64>;
 
@@ -114,10 +118,14 @@ fn main() -> ! {
 
     //  Get GPIO Port C, which also enables the Advanced Peripheral Bus 2 (APB2) clock for Port C.
     let mut gpiob = bluepill.GPIOB.split(&mut rcc.apb2);
-    //let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
+    let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
 
     let pb0 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
+
+    let pa9 = gpioa.pa9.into_alternate_push_pull(&mut gpioa.crh);
+    let pa10 = gpioa.pa10.into_floating_input(&mut gpioa.crh);
+
 
     let pb6 = gpiob.pb6;
     let pb7 = gpiob.pb7;
@@ -132,6 +140,17 @@ fn main() -> ! {
     unsafe {
         QEIM = Some(QeiManager::new(qei));
     }
+
+    let pc = Serial::usart1(
+        bluepill.USART1,
+        (pa9, pa10),
+        &mut afio.mapr,
+        2_250_000_000.bps(),
+        clocks,
+        &mut rcc.apb2,
+    );
+
+    let (pc_tx, _) = pc.split();
 
     //  Create a delay timer from the RCC clocks.
     let mut delay = Delay::new(cortex.SYST, clocks);
@@ -165,16 +184,12 @@ fn main() -> ! {
     nvic.enable(Interrupt::TIM2);
     tim2.listen(bluepill_hal::timer::Event::Update);
     loop {
-        /*
-        writeln!(
-            debug_out,
-            "Count : {}, Target : {}, Consigne {}",
-            unsafe { QEIM.as_mut().unwrap().count() as f64 },
-            unsafe { PID.as_mut().unwrap().target() },
-            unsafe { CONSIGNE },
-        )
-        .unwrap();
-        */
+
+        let line : ArrayString<[u8;15]> = format!("{}",35);
+        let val = unsafe { QEIM.as_mut().unwrap().count() };
+
+
+
     }
 }
 
