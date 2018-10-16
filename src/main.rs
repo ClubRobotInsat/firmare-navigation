@@ -15,11 +15,11 @@ extern crate stm32f103xx_hal as bluepill_hal; //  Hardware Abstraction Layer (HA
 extern crate stm32f103xx;
 #[macro_use]
 extern crate nb;
+extern crate arrayvec;
 extern crate embedded_hal;
+extern crate numtoa;
 extern crate pid_control;
 extern crate qei;
-extern crate arrayvec;
-extern crate numtoa;
 
 use cortex_m::Peripherals as CortexPeripherals;
 
@@ -51,8 +51,7 @@ use arrayvec::ArrayString;
 
 use numtoa::NumToA;
 
-
-type PIDControllerf = PIDController<f64>;
+type PIDControlleri = PIDController<i64>;
 
 //  Black Pill starts execution at function main().
 entry!(main);
@@ -66,11 +65,11 @@ type DirPin =
     bluepill_hal::gpio::gpiob::PB9<bluepill_hal::gpio::Output<bluepill_hal::gpio::PushPull>>;
 
 static mut QEIM: Option<QeiManager<Qei<bluepill_hal::stm32f103xx::TIM4, QeiPins>>> = None;
-static mut PID: Option<PIDController<f64>> = None;
+static mut PID: Option<PIDController<i64>> = None;
 static mut PWM: Option<Pwm<stm32f103xx::TIM3, C3>> = None;
 static mut DIR: Option<DirPin> = None;
 static mut CONSIGNE: u16 = 0;
-static mut TIME : u64 = 0;
+static mut TIME: u64 = 0;
 
 fn tim2_interrupt() {
     // Clear interrupt pending flag;
@@ -83,19 +82,19 @@ fn tim2_interrupt() {
     };
     let consigne = unsafe {
         let mut pid = PID.as_mut().unwrap();
-        pid.update(cnt as f64, 0.001)
+        pid.update(cnt, 1)
     };
     let pwm = unsafe { PWM.as_mut().unwrap() };
     let dir = unsafe { DIR.as_mut().unwrap() };
-    if consigne < 0.0 {
+    if consigne < 0 {
         unsafe {
-            CONSIGNE = (-2.0 * consigne * 65535.0) as u16;
+            CONSIGNE = (-consigne) as u16;
             pwm.set_duty(CONSIGNE);
             dir.set_low();
         }
     } else {
         unsafe {
-            CONSIGNE = (2.0 * consigne * 65535.0) as u16;
+            CONSIGNE = (consigne) as u16;
             pwm.set_duty(CONSIGNE);
             dir.set_high();
         }
@@ -109,7 +108,6 @@ fn tim2_interrupt() {
 fn main() -> ! {
     //  Show "Hello, world!" on the debug console, which is shown in OpenOCD. "mut" means that this object is mutable, i.e. it can change.
     let mut debug_out = hio::hstdout().unwrap();
-    writeln!(debug_out, "Initializeing peripherals...").unwrap();
 
     //  Get peripherals (clocks, flash memory, GPIO) for the STM32 Black Pill microcontroller.
     let bluepill = Peripherals::take().unwrap();
@@ -133,7 +131,6 @@ fn main() -> ! {
     let pa9 = gpioa.pa9.into_alternate_push_pull(&mut gpioa.crh);
     let pa10 = gpioa.pa10.into_floating_input(&mut gpioa.crh);
 
-
     let pb6 = gpiob.pb6;
     let pb7 = gpiob.pb7;
     let pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
@@ -142,7 +139,7 @@ fn main() -> ! {
     }
 
     let mut tim2 =
-        bluepill_hal::timer::Timer::tim2(bluepill.TIM2, 3000.hz(), clocks, &mut rcc.apb1);
+        bluepill_hal::timer::Timer::tim2(bluepill.TIM2, 20000.hz(), clocks, &mut rcc.apb1);
     let qei = Qei::tim4(bluepill.TIM4, (pb6, pb7), &mut afio.mapr, &mut rcc.apb1);
     unsafe {
         QEIM = Some(QeiManager::new(qei));
@@ -176,12 +173,12 @@ fn main() -> ! {
 
     {
         // K0 = 0.000004
-        let mut pid: PIDController<f64> = PIDControllerf::new(0.000006, 0.00, 0.000000);
-        pid.out_min = -0.5;
-        pid.out_max = 0.5;
-        pid.i_min = -0.0004;
-        pid.i_max = 0.0004;
-        pid.set_target(5632.0);
+        let mut pid: PIDController<i64> = PIDControlleri::new(1, 100, 100Ali);
+        pid.out_min = -65535;
+        pid.out_max = 65535;
+        pid.i_min = -5;
+        pid.i_max = 5;
+        pid.set_target(5632);
         pid.d_mode = DerivativeMode::OnError;
         unsafe {
             PID = Some(pid);
@@ -193,9 +190,8 @@ fn main() -> ! {
 
     let mut buf = [0u8; 32];
     loop {
-
         let val = unsafe { QEIM.as_mut().unwrap().count() };
-        let time = unsafe {TIME };
+        let time = unsafe { TIME };
         for b in time.numtoa(10, &mut buf) {
             block!(pc_tx.write(*b));
         }
