@@ -1,0 +1,11 @@
+#!/usr/bin/gnuplot
+set terminal png size 1920,1080;
+set output 'plot.png';
+
+set xlabel "Temps en ms"
+set ylabel "Position du moteur en degré"
+set title 'Courbe de réponse du moteur'
+set datafile separator ","
+set grid
+plot[1:800] 'plotting_data' using ($1/3):(($2*360)/(11*1024)) with line lt 2 title 'courbe de réponse' 
+#plot[1:2000] 'plotting_data' using 1:2 with line lt 2 title 'courbe de réponse' 

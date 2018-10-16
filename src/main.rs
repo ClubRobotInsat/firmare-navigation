@@ -70,6 +70,7 @@ static mut PID: Option<PIDController<f64>> = None;
 static mut PWM: Option<Pwm<stm32f103xx::TIM3, C3>> = None;
 static mut DIR: Option<DirPin> = None;
 static mut CONSIGNE: u16 = 0;
+static mut TIME : u64 = 0;
 
 fn tim2_interrupt() {
     // Clear interrupt pending flag;
@@ -98,6 +99,9 @@ fn tim2_interrupt() {
             pwm.set_duty(CONSIGNE);
             dir.set_high();
         }
+    }
+    unsafe {
+        TIME += 1;
     }
 }
 
@@ -138,7 +142,7 @@ fn main() -> ! {
     }
 
     let mut tim2 =
-        bluepill_hal::timer::Timer::tim2(bluepill.TIM2, 1000.hz(), clocks, &mut rcc.apb1);
+        bluepill_hal::timer::Timer::tim2(bluepill.TIM2, 3000.hz(), clocks, &mut rcc.apb1);
     let qei = Qei::tim4(bluepill.TIM4, (pb6, pb7), &mut afio.mapr, &mut rcc.apb1);
     unsafe {
         QEIM = Some(QeiManager::new(qei));
@@ -148,7 +152,7 @@ fn main() -> ! {
         bluepill.USART1,
         (pa9, pa10),
         &mut afio.mapr,
-        2_250_000_000.bps(),
+        115_200.bps(),
         clocks,
         &mut rcc.apb2,
     );
@@ -191,14 +195,15 @@ fn main() -> ! {
     loop {
 
         let val = unsafe { QEIM.as_mut().unwrap().count() };
+        let time = unsafe {TIME };
+        for b in time.numtoa(10, &mut buf) {
+            block!(pc_tx.write(*b));
+        }
+        block!(pc_tx.write(',' as u8));
         for b in val.numtoa(10, &mut buf) {
             block!(pc_tx.write(*b));
         }
         block!(pc_tx.write('\n' as u8));
-        block!(pc_tx.write('\r' as u8));
-
-
-
     }
 }
 
