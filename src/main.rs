@@ -19,6 +19,7 @@ extern crate embedded_hal;
 extern crate pid_control;
 extern crate qei;
 extern crate arrayvec;
+extern crate numtoa;
 
 use cortex_m::Peripherals as CortexPeripherals;
 
@@ -47,6 +48,8 @@ use f103::Interrupt;
 use qei::QeiManager;
 
 use arrayvec::ArrayString;
+
+use numtoa::NumToA;
 
 
 type PIDControllerf = PIDController<f64>;
@@ -150,7 +153,7 @@ fn main() -> ! {
         &mut rcc.apb2,
     );
 
-    let (pc_tx, _) = pc.split();
+    let (mut pc_tx, _) = pc.split();
 
     //  Create a delay timer from the RCC clocks.
     let mut delay = Delay::new(cortex.SYST, clocks);
@@ -183,10 +186,16 @@ fn main() -> ! {
 
     nvic.enable(Interrupt::TIM2);
     tim2.listen(bluepill_hal::timer::Event::Update);
+
+    let mut buf = [0u8; 32];
     loop {
 
-        let line : ArrayString<[u8;15]> = format!("{}",35);
         let val = unsafe { QEIM.as_mut().unwrap().count() };
+        for b in val.numtoa(10, &mut buf) {
+            block!(pc_tx.write(*b));
+        }
+        block!(pc_tx.write('\n' as u8));
+        block!(pc_tx.write('\r' as u8));
 
 
 
