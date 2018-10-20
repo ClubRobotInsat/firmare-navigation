@@ -42,6 +42,31 @@ type PIDControlleri = PIDController<i64>;
 //  Black Pill starts execution at function main().
 entry!(main);
 
+struct PositionPID {
+    pid_left: PIDControlleri,
+    pid_right: PIDControlleri,
+}
+
+impl PositionPID {
+    fn new(kp: i64, kd: i64, ki: i64, max_duty_left: u16, max_duty_right: u16) -> PositionPID {
+        let mut pid_left_position: PIDController<i64> = PIDControlleri::new(kp, ki, kd);
+        pid_left_position.out_min = -(max_duty_left as i64);
+        pid_left_position.out_max = max_duty_left as i64;
+
+        let mut pid_right_position: PIDController<i64> = PIDControlleri::new(kp, ki, kd);
+        pid_right_position.out_min = -(max_duty_right as i64);
+        pid_right_position.out_max = max_duty_right as i64;
+        PositionPID {
+            pid_left: pid_left_position,
+            pid_right: pid_right_position,
+        }
+    }
+
+    pub fn set_target() -> (u16,u16) {
+        (0,0)
+    }
+}
+
 fn main() -> ! {
     let bluepill = Peripherals::take().unwrap();
     let cortex = CortexPeripherals::take().unwrap();
@@ -90,21 +115,25 @@ fn main() -> ! {
     );
     pwm_left_pb1.enable();
     pwm_right_pb0.enable();
-    pwm_left_pb1.set_duty(65535);
-    pwm_right_pb0.set_duty(65355);
+    let duty = pwm_left_pb1.get_max_duty() / 50;
+    pwm_left_pb1.set_duty(duty);
+    pwm_right_pb0.set_duty(duty);
     // K0 = 0.000004
-    /*
-        let mut pid: PIDController<i64> = PIDControlleri::new(1, 100, 100);
-        pid.out_min = -65535;
-        pid.out_max = 65535;
-        pid.i_min = -5;
-        pid.i_max = 5;
-        pid.set_target(5632);
-        pid.d_mode = DerivativeMode::OnError;
-    */
 
-    left_engine_dir_pb8.set_high();
-    right_engine_dir_pb9.set_high();
+    let kp = 1;
+    let ki = 100;
+    let kd = 100;
+
+    let pos_pid = PositionPID::new(
+        kp,
+        ki,
+        kd,
+        pwm_left_pb1.get_max_duty(),
+        pwm_right_pb0.get_max_duty(),
+    );
+
+    left_engine_dir_pb8.set_low(); // LOW -> avancer, HIGH -> reculer
+    right_engine_dir_pb9.set_low();
     loop {}
 }
 
