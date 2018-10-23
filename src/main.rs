@@ -33,43 +33,18 @@ use cortex_m_semihosting::hio; //  For displaying messages on the debug console.
 
 use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
-use pid_control::{Controller, DerivativeMode, PIDController};
-
 use qei::QeiManager;
 
-type PIDControlleri = PIDController<i64>;
+mod pid;
+
+use pid::{Command, Motor, Pid};
 
 //  Black Pill starts execution at function main().
 entry!(main);
 
-struct PositionPID {
-    pid_left: PIDControlleri,
-    pid_right: PIDControlleri,
-}
-
-impl PositionPID {
-    fn new(kp: i64, kd: i64, ki: i64, max_duty_left: u16, max_duty_right: u16) -> PositionPID {
-        let mut pid_left_position: PIDController<i64> = PIDControlleri::new(kp, ki, kd);
-        pid_left_position.out_min = -(max_duty_left as i64);
-        pid_left_position.out_max = max_duty_left as i64;
-
-        let mut pid_right_position: PIDController<i64> = PIDControlleri::new(kp, ki, kd);
-        pid_right_position.out_min = -(max_duty_right as i64);
-        pid_right_position.out_max = max_duty_right as i64;
-        PositionPID {
-            pid_left: pid_left_position,
-            pid_right: pid_right_position,
-        }
-    }
-
-    pub fn set_target() -> (u16,u16) {
-        (0,0)
-    }
-}
-
 fn main() -> ! {
     let bluepill = Peripherals::take().unwrap();
-    let cortex = CortexPeripherals::take().unwrap();
+    let _cortex = CortexPeripherals::take().unwrap();
     let mut debug_out = hio::hstdout().unwrap();
 
     // Config des horloges
@@ -80,7 +55,7 @@ fn main() -> ! {
 
     // Config du GPIO
     let mut gpiob = bluepill.GPIOB.split(&mut rcc.apb2);
-    let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
+    let gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
 
@@ -88,17 +63,17 @@ fn main() -> ! {
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
     let pb6 = gpiob.pb6; // floating input
     let pb7 = gpiob.pb7; // floating input
-    let mut left_engine_dir_pb8 = gpiob.pb8.into_push_pull_output(&mut gpiob.crh);
-    let mut right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
+    let left_engine_dir_pb8 = gpiob.pb8.into_push_pull_output(&mut gpiob.crh);
+    let right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
 
     // Config des QEI
-    let mut qei_right = QeiManager::new(Qei::tim2(
+    let qei_right = QeiManager::new(Qei::tim2(
         bluepill.TIM2,
         (pa0, pa1),
         &mut afio.mapr,
         &mut rcc.apb1,
     ));
-    let mut qei_left = QeiManager::new(Qei::tim4(
+    let qei_left = QeiManager::new(Qei::tim4(
         bluepill.TIM4,
         (pb6, pb7),
         &mut afio.mapr,
@@ -115,26 +90,38 @@ fn main() -> ! {
     );
     pwm_left_pb1.enable();
     pwm_right_pb0.enable();
-    let duty = pwm_left_pb1.get_max_duty() / 50;
-    pwm_left_pb1.set_duty(duty);
-    pwm_right_pb0.set_duty(duty);
-    // K0 = 0.000004
+    let max_duty = pwm_right_pb0.get_max_duty();
+    let mut motor_left = Motor::new(pwm_left_pb1, left_engine_dir_pb8);
+    let mut motor_right = Motor::new(pwm_right_pb0, right_engine_dir_pb9);
 
-    let kp = 1;
-    let ki = 100;
-    let kd = 100;
+    // Config du PID
+    let pos_kp = 1;
+    let pos_kd = 100;
+    let orientation_kp = 1;
+    let orientation_kd = 1;
 
-    let pos_pid = PositionPID::new(
-        kp,
-        ki,
-        kd,
-        pwm_left_pb1.get_max_duty(),
-        pwm_right_pb0.get_max_duty(),
+    let mut pos_pid = Pid::new(
+        pos_kp,
+        pos_kd,
+        orientation_kp,
+        orientation_kd,
+        1,
+        max_duty,
+        qei_left,
+        qei_right,
     );
 
-    left_engine_dir_pb8.set_low(); // LOW -> avancer, HIGH -> reculer
-    right_engine_dir_pb9.set_low();
-    loop {}
+    pos_pid.set_orientation_goal(25000);
+
+    loop {
+        let (cmd_left, cmd_right) = pos_pid.update();
+        /*
+        pos_pid.print_qei_state(&mut debug_out);
+        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+        */
+        motor_left.apply_command(cmd_left);
+        motor_right.apply_command(cmd_right);
+    }
 }
 
 //  For any hard faults, show a message on the debug console and stop.
