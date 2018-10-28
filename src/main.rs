@@ -10,6 +10,7 @@ extern crate cortex_m_rt; //  Startup and runtime functions for ARM Cortex-M3.
 extern crate arrayvec;
 extern crate cortex_m_semihosting; //  Debug console functions for ARM Cortex-M3.
 extern crate embedded_hal;
+extern crate librobot;
 extern crate nb;
 extern crate numtoa;
 extern crate panic_semihosting; //  Panic reporting functions, which transmit to the debug console.
@@ -35,9 +36,8 @@ use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
 use qei::QeiManager;
 
-mod pid;
-
-use pid::{Command, Motor, Pid};
+use librobot::navigation::{Motor, RealWorldPid};
+use librobot::units::MilliMeter;
 
 //  Black Pill starts execution at function main().
 entry!(main);
@@ -55,9 +55,10 @@ fn main() -> ! {
 
     // Config du GPIO
     let mut gpiob = bluepill.GPIOB.split(&mut rcc.apb2);
-    let gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
+    let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
+    let mut pa9 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh);
 
     let pb0 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
@@ -95,32 +96,42 @@ fn main() -> ! {
     let mut motor_right = Motor::new(pwm_right_pb0, right_engine_dir_pb9);
 
     // Config du PID
-    let pos_kp = 1;
-    let pos_kd = 100;
-    let orientation_kp = 1;
-    let orientation_kd = 1;
+    let pos_kp = 1.0;
+    let pos_kd = 100.0;
+    let orientation_kp = 1.0;
+    let orientation_kd = 1.0;
 
-    let mut pos_pid = Pid::new(
+    let mut pid = RealWorldPid::new(
+        qei_left,
+        qei_right,
+        MilliMeter(31),
+        MilliMeter(223),
         pos_kp,
         pos_kd,
         orientation_kp,
         orientation_kd,
-        1,
         max_duty,
-        qei_left,
-        qei_right,
     );
 
-    pos_pid.set_orientation_goal(25000);
+    pid.forward(MilliMeter(50));
+
+    let mut io: bool = false;
 
     loop {
-        let (cmd_left, cmd_right) = pos_pid.update();
-        /*
-        pos_pid.print_qei_state(&mut debug_out);
-        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
-        */
+        let (cmd_left, cmd_right) = pid.update();
+
+        //pos_pid.print_qei_state(&mut debug_out);
+        //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+
         motor_left.apply_command(cmd_left);
         motor_right.apply_command(cmd_right);
+        if io {
+            io = false;
+            pa9.set_low();
+        } else {
+            io = true;
+            pa9.set_high();
+        }
     }
 }
 
