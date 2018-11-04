@@ -55,10 +55,9 @@ fn main() -> ! {
 
     // Config du GPIO
     let mut gpiob = bluepill.GPIOB.split(&mut rcc.apb2);
-    let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
+    let gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
-    let mut pa9 = gpioa.pa9.into_push_pull_output(&mut gpioa.crh);
 
     let pb0 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
@@ -89,19 +88,20 @@ fn main() -> ! {
         clocks,
         &mut rcc.apb1,
     );
-    pwm_left_pb1.enable();
     pwm_right_pb0.enable();
+    pwm_left_pb1.enable();
     let max_duty = pwm_right_pb0.get_max_duty();
+
     let mut motor_left = Motor::new(pwm_left_pb1, left_engine_dir_pb8);
     let mut motor_right = Motor::new(pwm_right_pb0, right_engine_dir_pb9);
 
     // Config du PID
     let pos_kp = 1.0;
-    let pos_kd = 100.0;
+    let pos_kd = 1.0;
     let orientation_kp = 1.0;
     let orientation_kd = 1.0;
 
-    let mut pid = RealWorldPid::new(
+    let mut pos_pid = RealWorldPid::new(
         qei_left,
         qei_right,
         MilliMeter(31),
@@ -110,28 +110,19 @@ fn main() -> ! {
         pos_kd,
         orientation_kp,
         orientation_kd,
-        max_duty,
+        max_duty / 4,
     );
 
-    pid.forward(MilliMeter(50));
-
-    let mut io: bool = false;
+    pos_pid.forward(MilliMeter(50));
 
     loop {
-        let (cmd_left, cmd_right) = pid.update();
+        let (cmd_left, cmd_right) = pos_pid.update();
 
         //pos_pid.print_qei_state(&mut debug_out);
         //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
 
         motor_left.apply_command(cmd_left);
         motor_right.apply_command(cmd_right);
-        if io {
-            io = false;
-            pa9.set_low();
-        } else {
-            io = true;
-            pa9.set_high();
-        }
     }
 }
 
@@ -139,6 +130,7 @@ fn main() -> ! {
 exception!(HardFault, hard_fault);
 
 fn hard_fault(ef: &ExceptionFrame) -> ! {
+    asm::bkpt();
     panic!("Hard fault: {:#?}", ef);
 }
 
@@ -146,5 +138,6 @@ fn hard_fault(ef: &ExceptionFrame) -> ! {
 exception!(*, default_handler);
 
 fn default_handler(irqn: i16) {
+    asm::bkpt();
     panic!("Unhandled exception (IRQn = {})", irqn);
 }
