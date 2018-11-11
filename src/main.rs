@@ -36,7 +36,7 @@ use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
 use qei::QeiManager;
 
-use librobot::navigation::{Motor, RealWorldPid};
+use librobot::navigation::{Motor, RealWorldPid, PIDParameters};
 use librobot::units::MilliMeter;
 
 //  Black Pill starts execution at function main().
@@ -55,9 +55,14 @@ fn main() -> ! {
 
     // Config du GPIO
     let mut gpiob = bluepill.GPIOB.split(&mut rcc.apb2);
-    let gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
+    let mut gpioa = bluepill.GPIOA.split(&mut rcc.apb2);
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
+
+    {
+        let mut pa8 = gpioa.pa8.into_push_pull_output(&mut gpioa.crh);
+        pa8.set_high();
+    }
 
     let pb0 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
@@ -96,21 +101,20 @@ fn main() -> ! {
     let mut motor_right = Motor::new(pwm_right_pb0, right_engine_dir_pb9);
 
     // Config du PID
-    let pos_kp = 1.0;
-    let pos_kd = 1.0;
-    let orientation_kp = 1.0;
-    let orientation_kd = 1.0;
+    let pid_parameters = PIDParameters {
+        coder_radius: MilliMeter(31),
+        inter_axial_length: MilliMeter(223),
+        pos_kp: 1.0,
+        pos_kd: 1.0,
+        orient_kp: 1.0,
+        orient_kd: 1.0,
+        max_output: max_duty/4,
+    };
 
     let mut pos_pid = RealWorldPid::new(
         qei_left,
         qei_right,
-        MilliMeter(31),
-        MilliMeter(223),
-        pos_kp,
-        pos_kd,
-        orientation_kp,
-        orientation_kd,
-        max_duty / 4,
+        &pid_parameters
     );
 
     pos_pid.forward(MilliMeter(50));
@@ -119,7 +123,7 @@ fn main() -> ! {
         let (cmd_left, cmd_right) = pos_pid.update();
 
         //pos_pid.print_qei_state(&mut debug_out);
-        //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
 
         motor_left.apply_command(cmd_left);
         motor_right.apply_command(cmd_right);
