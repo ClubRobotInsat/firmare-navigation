@@ -43,7 +43,7 @@ version = "0.10"
 
 [dependencies.stm32f103xx-hal]
 features = ["rt"]
-git = "https://github.com/japaric/stm32f103xx-hal"
+path = "/home/paul/repos/robot/rust/stm32f103xx-hal"
 [profile.release]
 codegen-units = 1
 debug = true

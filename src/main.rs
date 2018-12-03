@@ -25,6 +25,7 @@ use cortex_m::Peripherals as CortexPeripherals;
 
 use bluepill_hal::prelude::*; //  Define HAL traits.
 use bluepill_hal::qei::Qei;
+use bluepill_hal::serial::Serial;
 use bluepill_hal::stm32f103xx as f103;
 use bluepill_hal::stm32f103xx::Peripherals;
 use bluepill_hal::time::Hertz;
@@ -36,8 +37,10 @@ use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
 use qei::QeiManager;
 
-use librobot::navigation::{Motor, RealWorldPid, PIDParameters};
+use librobot::navigation::{Motor, PIDParameters, RealWorldPid};
 use librobot::units::MilliMeter;
+
+use numtoa::NumToA;
 
 //  Black Pill starts execution at function main().
 entry!(main);
@@ -45,7 +48,7 @@ entry!(main);
 fn main() -> ! {
     let bluepill = Peripherals::take().unwrap();
     let _cortex = CortexPeripherals::take().unwrap();
-    let mut debug_out = hio::hstdout().unwrap();
+    //let mut debug_out = hio::hstdout().unwrap();
 
     // Config des horloges
     let mut rcc = bluepill.RCC.constrain();
@@ -68,6 +71,8 @@ fn main() -> ! {
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
     let pb6 = gpiob.pb6; // floating input
     let pb7 = gpiob.pb7; // floating input
+    let pb10 = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
+    let pb11 = gpiob.pb11.into_floating_input(&mut gpiob.crh);
     let left_engine_dir_pb8 = gpiob.pb8.into_push_pull_output(&mut gpiob.crh);
     let right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
 
@@ -108,22 +113,36 @@ fn main() -> ! {
         pos_kd: 1.0,
         orient_kp: 1.0,
         orient_kd: 1.0,
-        max_output: max_duty/4,
+        max_output: max_duty / 4,
     };
 
-    let mut pos_pid = RealWorldPid::new(
-        qei_left,
-        qei_right,
-        &pid_parameters
+    let serial = Serial::usart3(
+        bluepill.USART3,
+        (pb10, pb11),
+        &mut afio.mapr,
+        115_200.bps(),
+        clocks,
+        &mut rcc.apb1,
     );
 
-    pos_pid.forward(MilliMeter(50));
+    let (mut debug, _) = serial.split();
+
+    let mut pos_pid = RealWorldPid::new(qei_left, qei_right, &pid_parameters);
+
+    //pos_pid.forward(MilliMeter(50));
 
     loop {
         let (cmd_left, cmd_right) = pos_pid.update();
-
+        let (pos_left, pos_right) = pos_pid.get_qei_ticks();
+        let (wanted_left, wanted_right) = pos_pid.get_qei_goal();
         //pos_pid.print_qei_state(&mut debug_out);
-        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+
+        write!(
+            &mut debug,
+            "----------------------\n\rQei - Left : {}, Right:{}\n\rPid - Left : {}, Right : {}\n\rCommand - Left : [{}], Right : [{}]\n\r",
+            pos_left, pos_right, wanted_left, wanted_right,cmd_left,cmd_right
+        )
+        .unwrap();
 
         motor_left.apply_command(cmd_left);
         motor_right.apply_command(cmd_right);
