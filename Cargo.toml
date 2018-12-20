@@ -28,7 +28,7 @@ version = "0.5.7"
 version = "0.3.0"
 
 [dependencies.panic-semihosting]
-version = "0.3.0"
+version = "0.5"
 
 [dependencies.pid_control]
 branch = "genericity"
