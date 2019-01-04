@@ -39,6 +39,8 @@ use qei::QeiManager;
 use librobot::navigation::{Motor, RealWorldPid, PIDParameters, Command};
 use librobot::units::MilliMeter;
 
+mod PWM;
+
 //  Black Pill starts execution at function main().
 entry!(main);
 
