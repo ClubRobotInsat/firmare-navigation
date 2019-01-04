@@ -118,18 +118,20 @@ fn main() -> ! {
     );
 
     //pos_pid.forward(MilliMeter(50));
-    let (cmd_left, cmd_right) = pos_pid.update();
-
-    //let cmd_left = Command::Back(50);
-    //let cmd_right = Command::Back(50);
 
     loop {
-
+        let (cmd_left, cmd_right) = pos_pid.update();
         //pos_pid.print_qei_state(&mut debug_out);
+
+        // permet d'afficher les valeurs des qei pour le debug
+        let mut tics = RealWorldPid::get_qei_ticks(& mut pos_pid);
+        write!(debug_out, "Left : {}, Right : {}\n", tics.0,tics.1).unwrap();
+
+        // Permet d'afficher les valeurs des commandes moteur pour le debug
         //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
-        write!(debug_out,"Left : {}, Right : {}\n",pos_pid.internal_pid)
-        //motor_left.apply_command(cmd_left);
-        //motor_right.apply_command(cmd_right);
+
+        motor_left.apply_command(cmd_left);
+        motor_right.apply_command(cmd_right);
     }
 }
 
