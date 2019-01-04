@@ -36,7 +36,7 @@ use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
 use qei::QeiManager;
 
-use librobot::navigation::{Motor, RealWorldPid, PIDParameters};
+use librobot::navigation::{Motor, RealWorldPid, PIDParameters, Command};
 use librobot::units::MilliMeter;
 
 //  Black Pill starts execution at function main().
@@ -117,16 +117,19 @@ fn main() -> ! {
         &pid_parameters
     );
 
-    pos_pid.forward(MilliMeter(50));
+    //pos_pid.forward(MilliMeter(50));
+    let (cmd_left, cmd_right) = pos_pid.update();
+
+    //let cmd_left = Command::Back(50);
+    //let cmd_right = Command::Back(50);
 
     loop {
-        let (cmd_left, cmd_right) = pos_pid.update();
 
         //pos_pid.print_qei_state(&mut debug_out);
-        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
-
-        motor_left.apply_command(cmd_left);
-        motor_right.apply_command(cmd_right);
+        //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+        write!(debug_out,"Left : {}, Right : {}\n",pos_pid.internal_pid)
+        //motor_left.apply_command(cmd_left);
+        //motor_right.apply_command(cmd_right);
     }
 }
 
