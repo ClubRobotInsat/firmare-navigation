@@ -18,6 +18,7 @@ extern crate pid_control;
 extern crate qei;
 extern crate stm32f103xx;
 extern crate stm32f103xx_hal as bluepill_hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pill.
+extern crate w5500;
 
 use core::fmt::Write;
 
@@ -28,6 +29,9 @@ use bluepill_hal::qei::Qei;
 use bluepill_hal::stm32f103xx as f103;
 use bluepill_hal::stm32f103xx::Peripherals;
 use bluepill_hal::time::Hertz;
+use bluepill_hal::spi::*;
+
+use f103::{SPI1, USART3};
 
 use cortex_m::asm;
 use cortex_m_semihosting::hio; //  For displaying messages on the debug console. //  Clocks, flash memory, GPIO for the STM32 Blue Pill.
@@ -36,7 +40,10 @@ use cortex_m_rt::ExceptionFrame; //  Stack frame for exception handling.
 
 use qei::QeiManager;
 
-use librobot::navigation::{Motor, RealWorldPid, PIDParameters, Command};
+use w5500::*;
+
+use librobot::navigation::{NavigationFrame, Motor, RealWorldPid, PIDParameters, Command};
+use librobot::transmission::eth::{init_eth, SOCKET_UDP};
 use librobot::units::MilliMeter;
 
 mod PWM;
@@ -74,27 +81,19 @@ fn main() -> ! {
     let right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
 
     // Config des QEI
-    let qei_right = QeiManager::new(Qei::tim2(
-        bluepill.TIM2,
-        (pa0, pa1),
-        &mut afio.mapr,
-        &mut rcc.apb1,
-    ));
-    let qei_left = QeiManager::new(Qei::tim4(
-        bluepill.TIM4,
-        (pb6, pb7),
-        &mut afio.mapr,
-        &mut rcc.apb1,
-    ));
+    let qei_right =
+        QeiManager::new(Qei::tim2(bluepill.TIM2, (pa0, pa1), &mut afio.mapr, &mut rcc.apb1));
+    let qei_left =
+        QeiManager::new(Qei::tim4(bluepill.TIM4, (pb6, pb7), &mut afio.mapr, &mut rcc.apb1));
 
     // Config des PWM
-    let (mut pwm_right_pb0, mut pwm_left_pb1) = bluepill.TIM3.pwm(
-        (pb0, pb1),
-        &mut afio.mapr,
-        Hertz(10000),
-        clocks,
-        &mut rcc.apb1,
-    );
+    let (mut pwm_right_pb0, mut pwm_left_pb1) = bluepill
+        .TIM3
+        .pwm((pb0, pb1),
+             &mut afio.mapr,
+             Hertz(10000),
+             clocks,
+             &mut rcc.apb1);
     pwm_right_pb0.enable();
     pwm_left_pb1.enable();
     let max_duty = pwm_right_pb0.get_max_duty();
@@ -110,24 +109,65 @@ fn main() -> ! {
         pos_kd: 1.0,
         orient_kp: 1.0,
         orient_kd: 1.0,
-        max_output: max_duty/4,
+        max_output: max_duty / 4,
     };
 
-    let mut pos_pid = RealWorldPid::new(
-        qei_left,
-        qei_right,
-        &pid_parameters
-    );
+    let mut pos_pid = RealWorldPid::new(qei_left, qei_right, &pid_parameters);
+
+    // ==== Config de l'ethernet
+    // ports pour la com
+    // TODO changer pb10 en le vrai port qu'il faut utiliser
+    let mut pb10 = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
+    pb10.set_low();
+
+    let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);
+    let miso = gpioa.pa6.into_floating_input(&mut gpioa.crl);
+    let mosi = gpioa.pa7.into_alternate_push_pull(&mut gpioa.crl);
+
+    // spi
+    let mut spi_eth = Spi::spi1(bluepill.SPI1,
+                                (sclk, miso, mosi),
+                                &mut afio.mapr,
+                                Mode {
+                                    polarity: Polarity::IdleLow,
+                                    phase: Phase::CaptureOnFirstTransition,
+                                },
+                                1.mhz(),
+                                clocks,
+                                &mut rcc.apb2);
+
+    // init w5500
+    let mut eth = W5500::new(&mut spi_eth, &mut pb10);
+    init_eth(&mut eth,
+             &mut spi_eth,
+             &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
+             &IpAddress::new(192, 168, 0, 222));
 
     //pos_pid.forward(MilliMeter(50));
 
+    let mut buffer = [0; 2048];
+
     loop {
+        if let Some((_, _, size)) = eth
+            .try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
+            .unwrap()
+            {
+                let _id = buffer[0];
+                match NavigationFrame::from_json_slice(&buffer[1..size]) {
+                    Ok(_frame) => {
+                        //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
+                        // Do something
+                    }
+                    Err(e) => panic!("{:#?}", e),
+                }
+            }
+
         let (cmd_left, cmd_right) = pos_pid.update();
         //pos_pid.print_qei_state(&mut debug_out);
 
         // permet d'afficher les valeurs des qei pour le debug
-        let mut tics = RealWorldPid::get_qei_ticks(& mut pos_pid);
-        write!(debug_out, "Left : {}, Right : {}\n", tics.0,tics.1).unwrap();
+        let mut tics = RealWorldPid::get_qei_ticks(&mut pos_pid);
+        write!(debug_out, "Left : {}, Right : {}\n", tics.0, tics.1).unwrap();
 
         // Permet d'afficher les valeurs des commandes moteur pour le debug
         //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();

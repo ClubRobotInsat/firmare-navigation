@@ -13,6 +13,5 @@ pub mod pwm {
     use librobot;
     use embedded_hal;
 
-    pub fn init_pwm(){
-    }
+    pub fn init_pwm() {}
 }
