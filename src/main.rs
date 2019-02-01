@@ -26,6 +26,7 @@ use cortex_m::Peripherals as CortexPeripherals;
 
 use bluepill_hal::prelude::*; //  Define HAL traits.
 use bluepill_hal::qei::Qei;
+use bluepill_hal::serial::Serial;
 use bluepill_hal::stm32f103xx as f103;
 use bluepill_hal::stm32f103xx::Peripherals;
 use bluepill_hal::time::Hertz;
@@ -77,6 +78,8 @@ fn main() -> ! {
     let pb1 = gpiob.pb1.into_alternate_push_pull(&mut gpiob.crl);
     let pb6 = gpiob.pb6; // floating input
     let pb7 = gpiob.pb7; // floating input
+    let pb10 = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
+    let pb11 = gpiob.pb11.into_floating_input(&mut gpiob.crh);
     let left_engine_dir_pb8 = gpiob.pb8.into_push_pull_output(&mut gpiob.crh);
     let right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
 
@@ -116,9 +119,9 @@ fn main() -> ! {
 
     // ==== Config de l'ethernet
     // ports pour la com
-    // TODO changer pb10 en le vrai port qu'il faut utiliser
-    let mut pb10 = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
-    pb10.set_low();
+    // TODO changer pb12 en le vrai port qu'il faut utiliser
+    let mut pb12 = gpiob.pb12.into_push_pull_output(&mut gpiob.crh);
+    pb12.set_low();
 
     let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);
     let miso = gpioa.pa6.into_floating_input(&mut gpioa.crl);
@@ -137,7 +140,7 @@ fn main() -> ! {
                                 &mut rcc.apb2);
 
     // init w5500
-    let mut eth = W5500::new(&mut spi_eth, &mut pb10);
+    let mut eth = W5500::new(&mut spi_eth, &mut pb12);
     init_eth(&mut eth,
              &mut spi_eth,
              &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
@@ -148,19 +151,18 @@ fn main() -> ! {
     let mut buffer = [0; 2048];
 
     loop {
-        if let Some((_, _, size)) = eth
-            .try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
-            .unwrap()
-            {
-                let _id = buffer[0];
-                match NavigationFrame::from_json_slice(&buffer[1..size]) {
-                    Ok(_frame) => {
-                        //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
-                        // Do something
-                    }
-                    Err(e) => panic!("{:#?}", e),
+        if let Some((_, _, size)) =
+            eth.try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
+                .unwrap() {
+            let _id = buffer[0];
+            match NavigationFrame::from_json_slice(&buffer[1..size]) {
+                Ok(_frame) => {
+                    //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
+                    // Do something
                 }
+                Err(e) => panic!("{:#?}", e),
             }
+        }
 
         let (cmd_left, cmd_right) = pos_pid.update();
         //pos_pid.print_qei_state(&mut debug_out);

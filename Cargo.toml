@@ -29,7 +29,7 @@ version = "0.5.7"
 version = "0.3.0"
 
 [dependencies.panic-semihosting]
-version = "0.5"
+version = "0.5.0"
 
 [dependencies.pid_control]
 branch = "genericity"
@@ -45,6 +45,7 @@ version = "0.10"
 [dependencies.stm32f103xx-hal]
 features = ["rt"]
 git = "https://github.com/clubrobotinsat/stm32f103xx-hal"
+
 [profile.release]
 codegen-units = 1
 debug = true
