@@ -7,6 +7,8 @@ license = "MIT OR Apache-2.0"
 name = "stm32-black-pill-rust"
 repository = "https://git.florencepaul.com/gbip/black_pill"
 version = "0.3.2"
+edition = "2018"
+
 [dependencies]
 embedded-hal = "0.2.1"
 nb = "0.1.1"
@@ -18,11 +20,11 @@ default-features = false
 version = "0.4.7"
 
 [dependencies.cortex-m]
-version = "0.5.7"
+version = "0.5"
 
 [dependencies.cortex-m-rt]
 features = ["device"]
-version = "0.5.7"
+version = "0.6"
 
 [dependencies.cortex-m-semihosting]
 version = "0.3.0"
@@ -37,14 +39,12 @@ git = "https://github.com/gbip/pid_control-rs"
 [dependencies.qei]
 version = "1.0.1"
 
-[dependencies.stm32f103xx]
-features = ["rt"]
-version = "0.10"
+[dependencies.stm32f1xx-hal]
+features = ["rt","stm32f103"]
+git = "https://github.com/stm32-rs/stm32f1xx-hal"
 
-[dependencies.stm32f103xx-hal]
-features = ["rt"]
-path = "/home/paul/repos/robot/rust/stm32f103xx-hal"
 [profile.release]
 codegen-units = 1
 debug = true
 lto = true
+incremental = false
