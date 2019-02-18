@@ -20,6 +20,7 @@ extern crate stm32f1xx_hal as bluepill_hal; //  Hardware Abstraction Layer (HAL)
 use crate::bluepill_hal::stm32 as f103;
 
 use core::fmt::Write;
+use core::fmt::Debug;
 
 use cortex_m::Peripherals as CortexPeripherals;
 
@@ -40,7 +41,7 @@ use qei::QeiManager;
 
 use w5500::*;
 
-use librobot::navigation::{NavigationFrame, Motor, RealWorldPid, PIDParameters, Command};
+use librobot::navigation::{NavigationFrame, Motor, Pid, RobotConstants, PIDParameters, Command};
 use librobot::transmission::eth::{init_eth, SOCKET_UDP};
 use librobot::units::MilliMeter;
 
@@ -111,13 +112,17 @@ fn main() -> ! {
         orient_kd: 1.0,
         max_output: max_duty / 4,
     };
+    let robot_constants = RobotConstants {
+        coder_radius: MilliMeter(31),
+        inter_axial_length: MilliMeter(223),
+    };
 
-    let mut pos_pid = RealWorldPid::new(qei_left, qei_right, &pid_parameters);
+    let mut pos_pid = Pid::new(qei_left, qei_right, &pid_parameters, robot_constants);
 
     // ==== Config de l'ethernet
     // ports pour la com
     // TODO changer pb12 en le vrai port qu'il faut utiliser
-    let mut pb12 = gpiob.pb12.into_push_pull_output(&mut gpiob.crh);
+    /*let mut pb12 = gpiob.pb12.into_push_pull_output(&mut gpiob.crh);
     pb12.set_low();
 
     let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);
@@ -141,14 +146,14 @@ fn main() -> ! {
     init_eth(&mut eth,
              &mut spi_eth,
              &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
-             &IpAddress::new(192, 168, 0, 222));
+             &IpAddress::new(192, 168, 0, 222));*/
 
     //pos_pid.forward(MilliMeter(50));
 
     let mut buffer = [0; 2048];
 
     loop {
-        if let Some((_, _, size)) =
+        /*if let Some((_, _, size)) =
             eth.try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
                 .unwrap() {
             let _id = buffer[0];
@@ -159,17 +164,16 @@ fn main() -> ! {
                 }
                 Err(e) => panic!("{:#?}", e),
             }
-        }
+        }*/
 
-        let (cmd_left, cmd_right) = pos_pid.update();
-        //pos_pid.print_qei_state(&mut debug_out);
+        pos_pid.update();
+        let (cmd_left, cmd_right) = pos_pid.get_command();
 
         // permet d'afficher les valeurs des qei pour le debug
-        let tics = RealWorldPid::get_qei_ticks(&mut pos_pid);
-        write!(debug_out, "Left : {}, Right : {}\n", tics.0, tics.1).unwrap();
+        write!(debug_out, "{:?}\n", pos_pid).unwrap();
 
         // Permet d'afficher les valeurs des commandes moteur pour le debug
-        //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
+        write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
 
         motor_left.apply_command(cmd_left);
         motor_right.apply_command(cmd_right);
