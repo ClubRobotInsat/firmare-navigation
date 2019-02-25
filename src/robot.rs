@@ -1,5 +1,5 @@
 use crate::f103;
-use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4};
+use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4, USART1};
 use crate::hal::delay::Delay;
 use crate::hal::gpio::{
     gpioa::*, gpiob::*, gpioc::*, Alternate, Floating, Input, Output, PushPull,
@@ -7,6 +7,7 @@ use crate::hal::gpio::{
 use crate::hal::prelude::*;
 use crate::hal::pwm::{Pwm, C3, C4};
 use crate::hal::qei::Qei;
+use crate::hal::serial::{Serial, Tx};
 use crate::hal::spi::*;
 use crate::hal::timer::Timer;
 use crate::CortexPeripherals;
@@ -40,6 +41,7 @@ pub struct Robot<K, P> {
     pub motor_right: MotorRight,
     pub motor_left: MotorLeft,
     pub max_duty: u16,
+    pub debug: Tx<USART1>,
 }
 
 pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Robot<SPI1, SpiPins> {
@@ -98,6 +100,20 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         &mut rcc.apb2,
     );
 
+    let pa9 = gpioa.pa9.into_alternate_push_pull(&mut gpioa.crh);
+    let pa10 = gpioa.pa10.into_floating_input(&mut gpioa.crh);
+
+    let debug_usart = Serial::usart1(
+        chip.USART1,
+        (pa9, pa10),
+        &mut afio.mapr,
+        115_200.bps(),
+        clocks,
+        &mut rcc.apb2,
+    );
+
+    let (debug_tx, _) = debug_usart.split();
+
     // Clignotement de la led
     let _ = Timer::tim1(chip.TIM1, 5.hz(), clocks, &mut rcc.apb2);
 
@@ -154,6 +170,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         qei_right,
         motor_left,
         max_duty,
+        debug: debug_tx,
     }
 }
 

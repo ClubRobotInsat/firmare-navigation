@@ -9,9 +9,14 @@ use crate::f103::Peripherals;
 use crate::hal::stm32 as f103;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
-use librobot::navigation::{PIDParameters, Pid, RobotConstants};
+use embedded_hal::serial::Write;
+use hal::device::USART1;
+use hal::serial::Tx;
+use librobot::navigation::{Command, PIDParameters, Pid, RobotConstants};
 use librobot::transmission::eth::init_eth;
 use librobot::units::MilliMeter;
+use nb::block;
+use numtoa::NumToA;
 #[allow(unused_imports)]
 use panic_semihosting;
 use robot::init_peripherals;
@@ -19,6 +24,53 @@ use stm32f1xx_hal as hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pi
 use w5500::*;
 
 //  Black Pill starts execution at function main().
+
+/// Envoie les informations de debug sur la pate PA9 du stm32 en utilisant le périphérique USART
+///
+/// Pour l'utiliser :
+/// 1. Il faut relier PA9 au pin RX d'un module USART
+/// 2. Il faut lancer `screen /dev/ttyUSB0 115200` (remplacer /dev/ttyUSB0 par le module USART)
+/// 3. ????
+///
+/// Enjoy !
+fn write_info(
+    ser: &mut Tx<USART1>,
+    qei_left: i64,
+    qei_right: i64,
+    command_left: Command,
+    command_right: Command,
+) {
+    let mut buffer_0 = [0u8; 64];
+    let mut buffer_1 = [0u8; 64];
+    let mut buffer_2 = [0u8; 64];
+    let mut buffer_3 = [0u8; 64];
+
+    let qei_left_str = qei_left.numtoa(10, &mut buffer_0);
+    let qei_right_str = qei_right.numtoa(10, &mut buffer_1);
+
+    let command_left_str = command_left.get_value().numtoa(10, &mut buffer_2);
+    let command_right_str = command_right.get_value().numtoa(10, &mut buffer_3);
+
+    let str1 = b"QEI : ";
+    let sep = b" | ";
+    let ret = b"\n";
+    let str2 = b"COMMAND : ";
+
+    for b in str1
+        .iter()
+        .chain(qei_left_str.iter())
+        .chain(sep.iter())
+        .chain(qei_right_str.iter())
+        .chain(ret.iter())
+        .chain(str2.iter())
+        .chain(command_left_str.iter())
+        .chain(sep.iter())
+        .chain(command_right_str.iter())
+        .chain(ret.iter())
+    {
+        block!(ser.write(*b)).expect("Failed to send data");
+    }
+}
 
 #[entry]
 fn main() -> ! {
@@ -104,13 +156,8 @@ fn main() -> ! {
 
         pos_pid.update();
         let (cmd_left, cmd_right) = pos_pid.get_command();
-
-        // permet d'afficher les valeurs des qei pour le debug
-        //write!(debug_out, "{:?}\n", pos_pid).unwrap();
-
-        // Permet d'afficher les valeurs des commandes moteur pour le debug
-        //write!(debug_out, "Left : {}, Right : {}\n", cmd_left, cmd_right).unwrap();
-
+        let qeis = pos_pid.get_qei_ticks();
+        write_info(&mut robot.debug, qeis.0, qeis.1, cmd_left, cmd_right);
         robot.motor_left.apply_command(cmd_left);
         robot.motor_right.apply_command(cmd_right);
     }
