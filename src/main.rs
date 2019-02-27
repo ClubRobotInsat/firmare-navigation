@@ -12,7 +12,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Write;
 use hal::device::USART1;
 use hal::serial::Tx;
-use librobot::navigation::{Command, PIDParameters, Pid, RobotConstants};
+use librobot::navigation::{Command, PIDParameters, RealWorldPid};
 use librobot::transmission::eth::init_eth;
 use librobot::units::MilliMeter;
 use nb::block;
@@ -95,16 +95,11 @@ fn main() -> ! {
         orient_kd: 1.0,
         max_output: robot.max_duty / 4,
     };
-    let robot_constants = RobotConstants {
-        coder_radius: MilliMeter(31),
-        inter_axial_length: MilliMeter(223),
-    };
 
-    let mut pos_pid = Pid::new(
+    let mut pos_pid = RealWorldPid::new(
         robot.qei_left,
         robot.qei_right,
-        &pid_parameters,
-        robot_constants,
+        &pid_parameters
     );
 
     // ==== Config de l'ethernet
@@ -136,7 +131,7 @@ fn main() -> ! {
              &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
              &IpAddress::new(192, 168, 0, 222));*/
 
-    //pos_pid.forward(MilliMeter(50));
+    pos_pid.forward(MilliMeter(50));
 
     let _buffer = [0; 2048];
 
