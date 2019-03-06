@@ -10,7 +10,7 @@ use crate::hal::stm32 as f103;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Write;
-use hal::device::USART1;
+use hal::device::USART3;
 use hal::serial::Tx;
 use librobot::navigation::{Command, PIDParameters, RealWorldPid};
 use librobot::transmission::eth::init_eth;
@@ -34,7 +34,7 @@ use w5500::*;
 ///
 /// Enjoy !
 fn write_info(
-    ser: &mut Tx<USART1>,
+    ser: &mut Tx<USART3>,
     qei_left: i64,
     qei_right: i64,
     command_left: Command,

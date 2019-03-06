@@ -1,5 +1,5 @@
 use crate::f103;
-use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4, USART1};
+use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4, USART3};
 use crate::hal::delay::Delay;
 use crate::hal::gpio::{
     gpioa::*, gpiob::*, gpioc::*, Alternate, Floating, Input, Output, PushPull,
@@ -41,7 +41,7 @@ pub struct Robot<K, P> {
     pub motor_right: MotorRight,
     pub motor_left: MotorLeft,
     pub max_duty: u16,
-    pub debug: Tx<USART1>,
+    pub debug: Tx<USART3>,
 }
 
 pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Robot<SPI1, SpiPins> {
@@ -100,16 +100,16 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         &mut rcc.apb2,
     );
 
-    let pa9 = gpioa.pa9.into_alternate_push_pull(&mut gpioa.crh);
-    let pa10 = gpioa.pa10.into_floating_input(&mut gpioa.crh);
+    let pb10 = gpiob.pb10.into_alternate_push_pull(&mut gpiob.crh);
+    let pb11 = gpiob.pb11.into_floating_input(&mut gpiob.crh);
 
-    let debug_usart = Serial::usart1(
-        chip.USART1,
-        (pa9, pa10),
+    let debug_usart = Serial::usart3(
+        chip.USART3,
+        (pb10, pb11),
         &mut afio.mapr,
         115_200.bps(),
         clocks,
-        &mut rcc.apb2,
+        &mut rcc.apb1,
     );
 
     let (debug_tx, _) = debug_usart.split();
