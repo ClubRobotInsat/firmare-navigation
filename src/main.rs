@@ -53,7 +53,7 @@ fn write_info(
 
     let str1 = b"QEI : ";
     let sep = b" | ";
-    let ret = b"\n";
+    let ret = b"\n\r";
     let str2 = b"COMMAND : ";
 
     for b in str1
@@ -148,7 +148,6 @@ fn main() -> ! {
                 Err(e) => panic!("{:#?}", e),
             }
         }*/
-
         pos_pid.update();
         let (cmd_left, cmd_right) = pos_pid.get_command();
         let qeis = pos_pid.get_qei_ticks();
