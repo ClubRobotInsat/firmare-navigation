@@ -9,6 +9,7 @@ use crate::f103::Peripherals;
 use crate::hal::stm32 as f103;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
+use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::serial::Write;
 use hal::device::USART3;
 use hal::serial::Tx;
@@ -93,7 +94,7 @@ fn main() -> ! {
         pos_kd: 1.0,
         orient_kp: 1.0,
         orient_kd: 1.0,
-        max_output: robot.max_duty / 4,
+        max_output: robot.max_duty,
     };
 
     let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
@@ -127,7 +128,7 @@ fn main() -> ! {
              &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
              &IpAddress::new(192, 168, 0, 222));*/
 
-    pos_pid.forward(MilliMeter(50));
+    pos_pid.forward(MilliMeter(500));
 
     let _buffer = [0; 2048];
 
@@ -150,5 +151,6 @@ fn main() -> ! {
         write_info(&mut robot.debug, qeis.0, qeis.1, cmd_left, cmd_right);
         robot.motor_left.apply_command(cmd_left);
         robot.motor_right.apply_command(cmd_right);
+        robot.delay.delay_ms(50u32);
     }
 }
