@@ -12,7 +12,7 @@ use cortex_m_rt::entry;
 use embedded_hal::serial::Write;
 use hal::device::USART3;
 use hal::serial::Tx;
-use librobot::navigation::{Command, PIDParameters, RealWorldPid};
+use librobot::navigation::{Command, PIDParameters, RealWorldPid, Coord};
 use librobot::transmission::eth::init_eth;
 use librobot::units::MilliMeter;
 use nb::block;
@@ -39,11 +39,14 @@ fn write_info(
     qei_right: i64,
     command_left: Command,
     command_right: Command,
+    position: Coord
 ) {
     let mut buffer_0 = [0u8; 64];
     let mut buffer_1 = [0u8; 64];
     let mut buffer_2 = [0u8; 64];
     let mut buffer_3 = [0u8; 64];
+    let mut buffer_4 = [0u8; 64];
+    let mut buffer_5 = [0u8; 64];
 
     let qei_left_str = qei_left.numtoa(10, &mut buffer_0);
     let qei_right_str = qei_right.numtoa(10, &mut buffer_1);
@@ -51,10 +54,15 @@ fn write_info(
     let command_left_str = command_left.get_value().numtoa(10, &mut buffer_2);
     let command_right_str = command_right.get_value().numtoa(10, &mut buffer_3);
 
+    let position_x_str = position.x.as_centimeters().numtoa(10, &mut buffer_4);
+    let position_y_str = position.y.as_centimeters().numtoa(10, &mut buffer_5);
+
     let str1 = b"QEI : ";
     let sep = b" | ";
     let ret = b"\n\r";
     let str2 = b"COMMAND : ";
+    let str3 = b"POSITION : ";
+    let cm = b"cm";
 
     for b in str1
         .iter()
@@ -66,6 +74,13 @@ fn write_info(
         .chain(command_left_str.iter())
         .chain(sep.iter())
         .chain(command_right_str.iter())
+        .chain(ret.iter())
+        .chain(str3.iter())
+        .chain(position_x_str.iter())
+        .chain(cm.iter())
+        .chain(sep.iter())
+        .chain(position_y_str.iter())
+        .chain(cm.iter())
         .chain(ret.iter())
     {
         block!(ser.write(*b)).expect("Failed to send data");
@@ -88,6 +103,8 @@ fn main() -> ! {
     // Config du PID
     let pid_parameters = PIDParameters {
         coder_radius: MilliMeter(31),
+        ticks_per_turn: 4096,
+        left_right_ratio: 1.0,
         inter_axial_length: MilliMeter(223),
         pos_kp: 1.0,
         pos_kd: 1.0,
@@ -131,6 +148,9 @@ fn main() -> ! {
 
     let _buffer = [0; 2048];
 
+    let mut i = 0;
+    let mut cmd = Command::Front(300);
+
     loop {
         /*if let Some((_, _, size)) =
             eth.try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
@@ -145,9 +165,21 @@ fn main() -> ! {
             }
         }*/
         pos_pid.update();
-        let (cmd_left, cmd_right) = pos_pid.get_command();
+        let (cmd_left, cmd_right) = (cmd, cmd);//pos_pid.get_command();
         let qeis = pos_pid.get_qei_ticks();
-        write_info(&mut robot.debug, qeis.0, qeis.1, cmd_left, cmd_right);
+        let coords = pos_pid.get_position();
+
+        i += 1;
+        if i == 10000 {
+            i = 0;
+            if cmd.get_value() == 0 {
+                cmd = Command::Front(3000);
+            }
+            else {
+                cmd = Command::Front(0);
+            }
+            write_info(&mut robot.debug, qeis.0, qeis.1, cmd_left, cmd_right, coords);
+        }
         robot.motor_left.apply_command(cmd_left);
         robot.motor_right.apply_command(cmd_right);
     }

@@ -10,7 +10,6 @@ use crate::hal::spi::*;
 use crate::hal::timer::Event;
 use crate::hal::timer::Timer;
 use crate::CortexPeripherals;
-use cortex_m::asm::bkpt;
 use cortex_m_rt::exception;
 use cortex_m_rt::ExceptionFrame;
 use librobot::navigation::Motor;
@@ -24,8 +23,8 @@ type QeiLeft =
 type QeiRight =
     (qei::QeiManager<stm32f1xx_hal::qei::Qei<TIM2, (PA0<Input<Floating>>, PA1<Input<Floating>>)>>);
 
-type MotorLeft = Motor<Pwm<TIM3, C4>, PB8<Output<PushPull>>>;
-type MotorRight = Motor<Pwm<TIM3, C3>, PB9<Output<PushPull>>>;
+type MotorLeft = Motor<Pwm<TIM3, C3>, PA12<Output<PushPull>>>;
+type MotorRight = Motor<Pwm<TIM3, C4>, PA3<Output<PushPull>>>;
 
 type SpiPins = (
     PA5<Alternate<PushPull>>,
@@ -126,8 +125,8 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let pb7 = gpiob.pb7; // floating input
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
-    let left_engine_dir_pb8 = gpiob.pb8.into_push_pull_output(&mut gpiob.crh);
-    let right_engine_dir_pb9 = gpiob.pb9.into_push_pull_output(&mut gpiob.crh);
+    let left_engine_dir_pa12 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
+    let right_engine_dir_pa3 = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
 
     let qei_right = QeiManager::new(Qei::tim2(
         chip.TIM2,
@@ -143,7 +142,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     ));
 
     // Config des PWM
-    let (mut pwm_right_pin, mut pwm_left_pin) = chip.TIM3.pwm(
+    let (mut pwm_left_pb0, mut pwm_right_pb1) = chip.TIM3.pwm(
         (pb0, pb1),
         &mut afio.mapr,
         10000.hz(),
@@ -151,13 +150,13 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         &mut rcc.apb1,
     );
 
-    pwm_right_pin.enable();
-    pwm_left_pin.enable();
+    pwm_left_pb0.enable();
+    pwm_right_pb1.enable();
 
-    let max_duty = pwm_right_pin.get_max_duty();
+    let max_duty = pwm_left_pb0.get_max_duty();
 
-    let motor_left = Motor::new(pwm_left_pin, left_engine_dir_pb8);
-    let motor_right = Motor::new(pwm_right_pin, right_engine_dir_pb9);
+    let motor_left = Motor::new(pwm_left_pb0, left_engine_dir_pa12);
+    let motor_right = Motor::new(pwm_right_pb1, right_engine_dir_pa3);
 
     //  Create a delay timer from the RCC clocks.
     let delay = Delay::new(cortex.SYST, clocks);
