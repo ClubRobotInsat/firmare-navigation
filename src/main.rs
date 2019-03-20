@@ -96,11 +96,7 @@ fn main() -> ! {
         max_output: robot.max_duty / 4,
     };
 
-    let mut pos_pid = RealWorldPid::new(
-        robot.qei_left,
-        robot.qei_right,
-        &pid_parameters
-    );
+    let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
 
     // ==== Config de l'ethernet
     // ports pour la com

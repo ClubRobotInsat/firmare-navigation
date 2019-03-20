@@ -1,19 +1,21 @@
 use crate::f103;
 use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4, USART3};
 use crate::hal::delay::Delay;
-use crate::hal::gpio::{
-    gpioa::*, gpiob::*, gpioc::*, Alternate, Floating, Input, Output, PushPull,
-};
+use crate::hal::gpio::{gpioa::*, gpiob::*, Alternate, Floating, Input, Output, PushPull};
 use crate::hal::prelude::*;
 use crate::hal::pwm::{Pwm, C3, C4};
 use crate::hal::qei::Qei;
 use crate::hal::serial::{Serial, Tx};
 use crate::hal::spi::*;
+use crate::hal::timer::Event;
 use crate::hal::timer::Timer;
 use crate::CortexPeripherals;
+use cortex_m::asm::bkpt;
 use cortex_m_rt::exception;
 use cortex_m_rt::ExceptionFrame;
 use librobot::navigation::Motor;
+use stm32f1xx_hal::device::Interrupt::TIM1_UP;
+
 use qei::QeiManager; //  Stack frame for exception handling.
 
 type QeiLeft =
@@ -34,7 +36,6 @@ type SpiPins = (
 pub struct Robot<K, P> {
     pub spi_eth: Spi<K, P>,
     pub delay: Delay,
-    pub led_black_pill: PC13<Output<PushPull>>,
     pub qei_left: QeiLeft,
     pub qei_right: QeiRight,
     pub cs: PB13<Output<PushPull>>,
@@ -85,7 +86,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         let mut led = gpioc.pc14.into_push_pull_output(&mut gpioc.crh);
         led.set_low();
     }
-    let led_black_pill = gpioc.pc13.into_push_pull_output(&mut gpioc.crh);
+    let _led_black_pill = gpioc.pc13.into_push_pull_output(&mut gpioc.crh);
 
     let spi = Spi::spi1(
         chip.SPI1,
@@ -115,7 +116,8 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let (debug_tx, _) = debug_usart.split();
 
     // Clignotement de la led
-    let _ = Timer::tim1(chip.TIM1, 5.hz(), clocks, &mut rcc.apb2);
+    let mut t_led = Timer::tim1(chip.TIM1, 5.hz(), clocks, &mut rcc.apb2);
+    t_led.listen(Event::Update);
 
     // Config des QEI
     let pb0 = gpiob.pb0.into_alternate_push_pull(&mut gpiob.crl);
@@ -141,7 +143,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     ));
 
     // Config des PWM
-    let (mut pwm_right_pb0, mut pwm_left_pb1) = chip.TIM3.pwm(
+    let (mut pwm_right_pin, mut pwm_left_pin) = chip.TIM3.pwm(
         (pb0, pb1),
         &mut afio.mapr,
         10000.hz(),
@@ -149,21 +151,21 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         &mut rcc.apb1,
     );
 
-    pwm_right_pb0.enable();
-    pwm_left_pb1.enable();
+    pwm_right_pin.enable();
+    pwm_left_pin.enable();
 
-    let max_duty = pwm_right_pb0.get_max_duty();
+    let max_duty = pwm_right_pin.get_max_duty();
 
-    let motor_left = Motor::new(pwm_left_pb1, left_engine_dir_pb8);
-    let motor_right = Motor::new(pwm_right_pb0, right_engine_dir_pb9);
+    let motor_left = Motor::new(pwm_left_pin, left_engine_dir_pb8);
+    let motor_right = Motor::new(pwm_right_pin, right_engine_dir_pb9);
 
     //  Create a delay timer from the RCC clocks.
     let delay = Delay::new(cortex.SYST, clocks);
+    cortex.NVIC.enable(TIM1_UP);
 
     Robot {
         spi_eth: spi,
         delay,
-        led_black_pill,
         cs,
         motor_right,
         qei_left,
@@ -178,13 +180,13 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
 fn TIM1_UP() {
     static mut TOOGLE: bool = false;
     unsafe {
+        (*f103::TIM1::ptr()).sr.write(|w| w.uif().clear_bit());
         if *TOOGLE {
-            (*f103::GPIOC::ptr()).bsrr.write(|w| w.br14().set_bit());
+            (*f103::GPIOC::ptr()).bsrr.write(|w| w.br13().set_bit());
         } else {
-            (*f103::GPIOC::ptr()).bsrr.write(|w| w.bs14().set_bit());
+            (*f103::GPIOC::ptr()).bsrr.write(|w| w.bs13().set_bit());
         }
         *TOOGLE = !(*TOOGLE);
-        (*f103::TIM3::ptr()).sr.write(|w| w.uif().clear_bit());
     }
 }
 
