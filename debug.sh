@@ -4,6 +4,8 @@ Green='\033[0;42m'
 Red='\033[0;41m'
 End='\033[0;0m'
 
+cargo build --release
+
 EXECUTABLE_FILE="target/thumbv7m-none-eabi/debug/stm32-black-pill-rust"
 check_gdb() {
     GDB=$(which "$1")
@@ -17,7 +19,9 @@ check_gdb() {
 }
 
 check_gdb arm-none-eabi-gdb
-check_gdb _others_gdb_
+check_gdb gdb-multiarch
+# add your own gdb:
+# check_gdb [others_gdb]
 
 echo -e "${Red}Impossible to launch a GDB session.${End}"
 
