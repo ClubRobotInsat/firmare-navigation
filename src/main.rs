@@ -104,12 +104,13 @@ fn main() -> ! {
     let pid_parameters = PIDParameters {
         coder_radius: MilliMeter(31),
         ticks_per_turn: 4096,
-        left_right_ratio: 1.0,
+        left_wheel_coef: 1.0,
+        right_wheel_coef: -1.0,
         inter_axial_length: MilliMeter(223),
         pos_kp: 1.0,
-        pos_kd: 1.0,
+        pos_kd: 0.0,
         orient_kp: 1.0,
-        orient_kd: 1.0,
+        orient_kd: 0.0,
         max_output: robot.max_duty / 4,
     };
 
@@ -144,12 +145,11 @@ fn main() -> ! {
              &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
              &IpAddress::new(192, 168, 0, 222));*/
 
-    pos_pid.forward(MilliMeter(50));
+    pos_pid.forward(MilliMeter(0));
 
     let _buffer = [0; 2048];
 
     let mut i = 0;
-    let mut cmd = Command::Front(300);
 
     loop {
         /*if let Some((_, _, size)) =
@@ -165,22 +165,17 @@ fn main() -> ! {
             }
         }*/
         pos_pid.update();
-        let (cmd_left, cmd_right) = (cmd, cmd);//pos_pid.get_command();
+        let (cmd_left, cmd_right) = pos_pid.get_command();
         let qeis = pos_pid.get_qei_ticks();
         let coords = pos_pid.get_position();
+        robot.motor_left.apply_command(cmd_left.invert());
+        robot.motor_right.apply_command(cmd_right);
 
         i += 1;
-        if i == 10000 {
+
+        if i % 1000 == 0 {
+            write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right, coords);
             i = 0;
-            if cmd.get_value() == 0 {
-                cmd = Command::Front(3000);
-            }
-            else {
-                cmd = Command::Front(0);
-            }
-            write_info(&mut robot.debug, qeis.0, qeis.1, cmd_left, cmd_right, coords);
         }
-        robot.motor_left.apply_command(cmd_left);
-        robot.motor_right.apply_command(cmd_right);
     }
 }
