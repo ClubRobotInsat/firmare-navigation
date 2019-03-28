@@ -37,7 +37,7 @@ pub struct Robot<K, P> {
     pub delay: Delay,
     pub qei_left: QeiLeft,
     pub qei_right: QeiRight,
-    pub cs: PB13<Output<PushPull>>,
+    pub cs: PA11<Output<PushPull>>,
     pub motor_right: MotorRight,
     pub motor_left: MotorLeft,
     pub max_duty: u16,
@@ -70,7 +70,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     // Configuration des PINS
 
     // Slave select, on le fixe à un état bas (on n'en a pas besoin, une seule communication)
-    let mut cs = gpiob.pb13.into_push_pull_output(&mut gpiob.crh);
+    let mut cs = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
     cs.set_low();
 
     let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);

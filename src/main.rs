@@ -13,7 +13,9 @@ use embedded_hal::serial::Write;
 use hal::device::USART3;
 use hal::serial::Tx;
 use librobot::navigation::{Command, PIDParameters, RealWorldPid, Coord};
-use librobot::transmission::eth::init_eth;
+use librobot::transmission::navigation::{NavigationFrame, NavigationCommand};
+use librobot::transmission::Jsonizable;
+use librobot::transmission::eth::{ init_eth, listen_on, SOCKET_UDP };
 use librobot::units::MilliMeter;
 use nb::block;
 use numtoa::NumToA;
@@ -22,6 +24,7 @@ use panic_semihosting;
 use robot::init_peripherals;
 use stm32f1xx_hal as hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pill.
 use w5500::*;
+use librobot::transmission::id::{ID_NAVIGATION, ELEC_LISTENING_PORT};
 
 //  Black Pill starts execution at function main().
 
@@ -92,13 +95,6 @@ fn main() -> ! {
     let chip = Peripherals::take().unwrap();
     let cortex = CortexPeripherals::take().unwrap();
     let mut robot = init_peripherals(chip, cortex);
-    let mut eth = W5500::new(&mut robot.spi_eth, &mut robot.cs);
-    init_eth(
-        &mut eth,
-        &mut robot.spi_eth,
-        &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
-        &IpAddress::new(255, 255, 255, 0),
-    );
 
     // Config du PID
     let pid_parameters = PIDParameters {
@@ -115,61 +111,72 @@ fn main() -> ! {
     };
 
     let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
-
-    // ==== Config de l'ethernet
-    // ports pour la com
-    // TODO changer pb12 en le vrai port qu'il faut utiliser
-    /*let mut pb12 = gpiob.pb12.into_push_pull_output(&mut gpiob.crh);
-    pb12.set_low();
-
-    let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);
-    let miso = gpioa.pa6.into_floating_input(&mut gpioa.crl);
-    let mosi = gpioa.pa7.into_alternate_push_pull(&mut gpioa.crl);
-
-    // spi
-    let mut spi_eth = Spi::spi1(bluepill.SPI1,
-                                (sclk, miso, mosi),
-                                &mut afio.mapr,
-                                Mode {
-                                    polarity: Polarity::IdleLow,
-                                    phase: Phase::CaptureOnFirstTransition,
-                                },
-                                1.mhz(),
-                                clocks,
-                                &mut rcc.apb2);
-
-    // init w5500
-    let mut eth = W5500::new(&mut spi_eth, &mut pb12);
-    init_eth(&mut eth,
-             &mut spi_eth,
-             &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, 0x05),
-             &IpAddress::new(192, 168, 0, 222));*/
-
     pos_pid.forward(MilliMeter(0));
 
-    let _buffer = [0; 2048];
+    // ==== Config de l'ethernet
+
+    // init w5500
+    let mut eth = W5500::new(&mut robot.spi_eth, &mut robot.cs);
+    init_eth(&mut eth,
+             &mut robot.spi_eth,
+             &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, ID_NAVIGATION as u8),
+             &IpAddress::new(192, 168, 1, ID_NAVIGATION as u8));
+
+    listen_on(&mut eth, &mut robot.spi_eth, ELEC_LISTENING_PORT + ID_NAVIGATION, SOCKET_UDP);
+
+    let mut buffer = [0; 2048];
 
     let mut i = 0;
+    let mut emergency_stop_flag = false;
+    write_info(&mut robot.debug, 2, 5, Command::Front(0), Command::Back(0), pos_pid.get_position());
 
     loop {
-        /*if let Some((_, _, size)) =
-            eth.try_receive_udp(&mut spi_eth, SOCKET_UDP, &mut buffer)
+        if let Some((_, _, size)) =
+            eth.try_receive_udp(&mut robot.spi_eth, SOCKET_UDP, &mut buffer)
                 .unwrap() {
-            let _id = buffer[0];
-            match NavigationFrame::from_json_slice(&buffer[1..size]) {
-                Ok(_frame) => {
+            /*match NavigationFrame::from_json_slice(&buffer[0..size]) {
+                Ok(frame) => {
                     //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
-                    // Do something
+                    match frame.command {
+                        NavigationCommand::GoForward => {
+                            pos_pid.forward(MilliMeter(frame.args_cmd1 as i64 / 10));
+                        },
+                        NavigationCommand::GoBackward => {
+                            pos_pid.backward(MilliMeter(frame.args_cmd1 as i64 / 10));
+                        },
+                        NavigationCommand::TurnAbsolute => {
+                            // TODO
+                        },
+                        NavigationCommand::TurnRelative => {
+                            // TODO
+                        },
+                        NavigationCommand::EmergencyStop => {
+                            // set pid to 0
+                            emergency_stop_flag = true;
+                        },
+                        NavigationCommand::Stop => {
+                            // set pid to 0
+                        },
+                        NavigationCommand::DoNothing => (),
+                    }
                 }
                 Err(e) => panic!("{:#?}", e),
-            }
-        }*/
+            }*/
+        }
+
         pos_pid.update();
         let (cmd_left, cmd_right) = pos_pid.get_command();
         let qeis = pos_pid.get_qei_ticks();
         let coords = pos_pid.get_position();
-        robot.motor_left.apply_command(cmd_left.invert());
-        robot.motor_right.apply_command(cmd_right);
+
+        if emergency_stop_flag {
+            robot.motor_left.apply_command(Command::Front(0));
+            robot.motor_right.apply_command(Command::Front(0));
+        }
+        else {
+            robot.motor_left.apply_command(cmd_left.invert());
+            robot.motor_right.apply_command(cmd_right);
+        }
 
         i += 1;
 
