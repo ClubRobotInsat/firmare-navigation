@@ -128,13 +128,11 @@ fn main() -> ! {
 
     let mut i = 0;
     let mut emergency_stop_flag = false;
-    write_info(&mut robot.debug, 2, 5, Command::Front(0), Command::Back(0), pos_pid.get_position());
 
     loop {
-        if let Some((_, _, size)) =
-            eth.try_receive_udp(&mut robot.spi_eth, SOCKET_UDP, &mut buffer)
-                .unwrap() {
-            /*match NavigationFrame::from_json_slice(&buffer[0..size]) {
+        if let Ok(Some((_, _, size))) =
+            eth.try_receive_udp(&mut robot.spi_eth, SOCKET_UDP, &mut buffer) {
+            match NavigationFrame::from_json_slice(&buffer[0..size]) {
                 Ok(frame) => {
                     //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
                     match frame.command {
@@ -161,7 +159,7 @@ fn main() -> ! {
                     }
                 }
                 Err(e) => panic!("{:#?}", e),
-            }*/
+            }
         }
 
         pos_pid.update();
