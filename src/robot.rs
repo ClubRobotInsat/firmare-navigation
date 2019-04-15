@@ -26,7 +26,7 @@ type QeiRight =
 type MotorLeft = Motor<Pwm<TIM3, C3>, PA12<Output<PushPull>>>;
 type MotorRight = Motor<Pwm<TIM3, C4>, PA3<Output<PushPull>>>;
 
-type SpiPins = (
+pub type SpiPins = (
     PA5<Alternate<PushPull>>,
     PA6<Input<Floating>>,
     PA7<Alternate<PushPull>>,

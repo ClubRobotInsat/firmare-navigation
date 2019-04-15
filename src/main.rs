@@ -6,10 +6,14 @@
 mod robot;
 
 use crate::f103::Peripherals;
+use crate::f103::SPI1;
 use crate::hal::stm32 as f103;
+use crate::hal::spi::Spi;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
 use embedded_hal::serial::Write;
+use embedded_hal::spi::FullDuplex;
+use embedded_hal::Qei;
 use hal::device::USART3;
 use hal::serial::Tx;
 use librobot::navigation::{Command, PIDParameters, RealWorldPid, Coord};
@@ -24,7 +28,13 @@ use panic_semihosting;
 use robot::init_peripherals;
 use stm32f1xx_hal as hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pill.
 use w5500::*;
-use librobot::transmission::id::{ID_NAVIGATION, ELEC_LISTENING_PORT};
+use heapless::consts::U2048;
+use librobot::transmission::id::{ID_NAVIGATION, ELEC_LISTENING_PORT, INFO_LISTENING_PORT};
+// use librobot::transmission::MessageKind::Navigation;
+
+use crate::robot::Robot;
+use crate::robot::SpiPins;
+use librobot::transmission::navigation::NavigationCommand::EmergencyStop;
 
 //  Black Pill starts execution at function main().
 
@@ -90,11 +100,108 @@ fn write_info(
     }
 }
 
+struct NavigationState {
+    command: NavigationCommand,
+    counter: u16,
+    blocked: bool,
+    moving_done: bool,
+}
+
+fn send_navigation_state<T, K, L, R>(
+    spi: &mut Spi<T, K>,
+    eth: &mut W5500,
+    pos_pid : &RealWorldPid<L, R>,
+    nav_state: &NavigationState,
+) where
+    Spi<T, K>: FullDuplex<u8>,
+    L: Qei<Count = u16>,
+    R: Qei<Count = u16>,
+{
+    let angle = pos_pid.get_angle() as u16;
+    let position = pos_pid.get_position();
+
+    let frame = NavigationFrame {
+        angle,
+        x: position.x.as_millimeters() as u16 * 10,
+        y: position.y.as_millimeters() as u16 * 10,
+
+        blocked: nav_state.blocked,
+        moving_done: nav_state.moving_done,
+
+        // read-only
+        command: nav_state.command,
+        counter: nav_state.counter,
+
+        asserv_on_off: true,
+        reset: true,
+        led: true,
+        args_cmd1: 0,
+        args_cmd2: 0,
+    };
+
+    if let Ok(data) = frame.to_string::<U2048>() {
+        if let Ok(_) = eth.send_udp(
+            spi,
+            SOCKET_UDP,
+            ELEC_LISTENING_PORT + ID_NAVIGATION,
+            &IpAddress::new(192, 168, 1, 254),
+            INFO_LISTENING_PORT + ID_NAVIGATION,
+            &data.as_bytes(),
+        ) {
+            // robot.led_feedback.set_low();
+        } else {
+            // robot.led_feedback.set_high();
+        }
+    }
+}
+
+fn exec_command<L, R>(
+    pos_pid: &mut RealWorldPid<L, R>,
+    command: NavigationCommand,
+    arg1 :u16, _arg2: u16
+) where
+    L: Qei<Count = u16>,
+    R: Qei<Count = u16>,
+{
+    match command {
+        NavigationCommand::GoForward => {
+            pos_pid.forward(MilliMeter(arg1 as i64 / 10));
+        },
+        NavigationCommand::GoBackward => {
+            pos_pid.backward(MilliMeter(arg1 as i64 / 10));
+        },
+        NavigationCommand::TurnAbsolute => {
+            let current_angle = pos_pid.get_angle();
+            let diff = arg1 as i64 - current_angle;
+
+            pos_pid.rotate(diff);
+
+            // TODO ensure minimal rotation
+            if diff < 0 {
+
+            }
+            else {
+
+            }
+        },
+        NavigationCommand::TurnRelative => {
+            pos_pid.rotate(arg1 as i64);
+        },
+        NavigationCommand::EmergencyStop => {
+            // set pid to 0
+        },
+        NavigationCommand::Stop => {
+            // set pid to 0
+        },
+        NavigationCommand::DoNothing => (),
+    }
+}
+
 #[entry]
 fn main() -> ! {
     let chip = Peripherals::take().unwrap();
     let cortex = CortexPeripherals::take().unwrap();
-    let mut robot = init_peripherals(chip, cortex);
+    let mut robot: Robot<SPI1, SpiPins> = init_peripherals(chip, cortex);
 
     // Config du PID
     let pid_parameters = PIDParameters {
@@ -110,8 +217,14 @@ fn main() -> ! {
         max_output: robot.max_duty / 4,
     };
 
+    let mut nav_state = NavigationState {
+        command: NavigationCommand::DoNothing,
+        counter: 0,
+        blocked: false,
+        moving_done: true,
+    };
+
     let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
-    pos_pid.forward(MilliMeter(0));
 
     // ==== Config de l'ethernet
 
@@ -132,34 +245,30 @@ fn main() -> ! {
     loop {
         if let Ok(Some((_, _, size))) =
             eth.try_receive_udp(&mut robot.spi_eth, SOCKET_UDP, &mut buffer) {
-            match NavigationFrame::from_json_slice(&buffer[0..size]) {
+
+            for b in buffer.iter() {
+                block!(robot.debug.write(*b)).expect("Failed to send data");
+            }
+
+            let mut buffer_4 = [0u8; 64];
+            for b in size.numtoa(10, &mut buffer_4).iter() {
+                block!(robot.debug.write(*b)).expect("Failed to send data");
+            }
+
+            match NavigationFrame::from_json_slice(&buffer[1..size]) {
                 Ok(frame) => {
-                    //write!(debug_out, "{:?}", servo.to_string::<U256>().unwrap()).unwrap();
-                    match frame.command {
-                        NavigationCommand::GoForward => {
-                            pos_pid.forward(MilliMeter(frame.args_cmd1 as i64 / 10));
-                        },
-                        NavigationCommand::GoBackward => {
-                            pos_pid.backward(MilliMeter(frame.args_cmd1 as i64 / 10));
-                        },
-                        NavigationCommand::TurnAbsolute => {
-                            // TODO
-                        },
-                        NavigationCommand::TurnRelative => {
-                            // TODO
-                        },
-                        NavigationCommand::EmergencyStop => {
-                            // set pid to 0
-                            emergency_stop_flag = true;
-                        },
-                        NavigationCommand::Stop => {
-                            // set pid to 0
-                        },
-                        NavigationCommand::DoNothing => (),
+
+                    if frame.counter != nav_state.counter {
+                        nav_state.counter = frame.counter;
+                        nav_state.command = frame.command;
+
+                        exec_command(&mut pos_pid, frame.command, frame.args_cmd1, frame.args_cmd2);
                     }
                 }
                 Err(e) => panic!("{:#?}", e),
             }
+
+            send_navigation_state(&mut robot.spi_eth, &mut eth, &pos_pid, &nav_state);
         }
 
         pos_pid.update();
@@ -167,19 +276,19 @@ fn main() -> ! {
         let qeis = pos_pid.get_qei_ticks();
         let coords = pos_pid.get_position();
 
-        if emergency_stop_flag {
+        if nav_state.command == EmergencyStop {
             robot.motor_left.apply_command(Command::Front(0));
             robot.motor_right.apply_command(Command::Front(0));
         }
         else {
             robot.motor_left.apply_command(cmd_left.invert());
-            robot.motor_right.apply_command(cmd_right);
+            robot.motor_right.apply_command(cmd_right.invert());
         }
 
         i += 1;
 
         if i % 1000 == 0 {
-            write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right, coords);
+            write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right.invert(), coords);
             i = 0;
         }
     }
