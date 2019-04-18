@@ -125,8 +125,8 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let pb7 = gpiob.pb7; // floating input
     let pa0 = gpioa.pa0; // floating input
     let pa1 = gpioa.pa1; // floating input
-    let left_engine_dir_pa12 = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
-    let right_engine_dir_pa3 = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
+    let left_engine_dir = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
+    let right_engine_dir = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
 
     let qei_right = QeiManager::new(Qei::tim2(
         chip.TIM2,
@@ -155,8 +155,8 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
 
     let max_duty = pwm_left_pb0.get_max_duty();
 
-    let motor_left = Motor::new(pwm_left_pb0, left_engine_dir_pa12);
-    let motor_right = Motor::new(pwm_right_pb1, right_engine_dir_pa3);
+    let motor_left = Motor::new(pwm_left_pb0, left_engine_dir);
+    let motor_right = Motor::new(pwm_right_pb1, right_engine_dir);
 
     //  Create a delay timer from the RCC clocks.
     let delay = Delay::new(cortex.SYST, clocks);
@@ -170,7 +170,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         qei_left,
         qei_right,
         motor_left,
-        max_duty,
+        max_duty: (max_duty / 2 + max_duty / 4),
         debug: debug_tx,
     }
 }

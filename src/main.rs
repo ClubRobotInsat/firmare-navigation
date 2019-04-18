@@ -11,6 +11,7 @@ use crate::hal::stm32 as f103;
 use crate::hal::spi::Spi;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
+use embedded_hal::blocking::delay::DelayMs;
 use embedded_hal::serial::Write;
 use embedded_hal::spi::FullDuplex;
 use embedded_hal::Qei;
@@ -52,7 +53,7 @@ fn write_info(
     qei_right: i64,
     command_left: Command,
     command_right: Command,
-    position: Coord
+    position: Coord,
 ) {
     let mut buffer_0 = [0u8; 64];
     let mut buffer_1 = [0u8; 64];
@@ -211,7 +212,7 @@ fn main() -> ! {
         pos_kp: 1.0,
         pos_kd: 0.0,
         orient_kp: 1.0,
-        orient_kd: 0.0,
+        orient_kd: 1.0,
         max_output: robot.max_duty / 4,
     };
 
@@ -285,7 +286,14 @@ fn main() -> ! {
         i += 1;
 
         if i % 1000 == 0 {
-            //write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right.invert(), coords);
+            /*write_info(
+                &mut robot.debug,
+                qeis.0,
+                -qeis.1,
+                cmd_left.invert(),
+                cmd_right,
+                coords,
+            );*/
             i = 0;
         }
     }
