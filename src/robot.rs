@@ -145,7 +145,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let (mut pwm_left_pb0, mut pwm_right_pb1) = chip.TIM3.pwm(
         (pb0, pb1),
         &mut afio.mapr,
-        10000.hz(),
+        20000.hz(),
         clocks,
         &mut rcc.apb1,
     );

@@ -117,13 +117,13 @@ fn send_navigation_state<T, K, L, R>(
     L: Qei<Count = u16>,
     R: Qei<Count = u16>,
 {
-    let angle = pos_pid.get_angle() as u16;
+    let angle = pos_pid.get_angle();
     let position = pos_pid.get_position();
 
     let frame = NavigationFrame {
-        angle,
-        x: position.x.as_millimeters() as u16 * 10,
-        y: position.y.as_millimeters() as u16 * 10,
+        angle: angle as i32 * 10,
+        x: position.x.as_millimeters() as i32 * 10,
+        y: position.y.as_millimeters() as i32 * 10,
 
         blocked: nav_state.blocked,
         moving_done: nav_state.moving_done,
@@ -172,7 +172,7 @@ fn exec_command<L, R>(
         },
         NavigationCommand::TurnAbsolute => {
             let current_angle = pos_pid.get_angle();
-            let diff = arg1 as i64 - current_angle;
+            let diff = arg1 as i64 / 10 - current_angle;
 
             pos_pid.rotate(diff);
 
@@ -185,13 +185,11 @@ fn exec_command<L, R>(
             }
         },
         NavigationCommand::TurnRelative => {
-            pos_pid.rotate(arg1 as i64);
+            pos_pid.rotate(arg1 as i64 / 10);
         },
-        NavigationCommand::EmergencyStop => {
-            // set pid to 0
-        },
+        NavigationCommand::EmergencyStop => { },
         NavigationCommand::Stop => {
-            // set pid to 0
+            pos_pid.stop();
         },
         NavigationCommand::DoNothing => (),
     }
@@ -240,22 +238,21 @@ fn main() -> ! {
     let mut buffer = [0; 2048];
 
     let mut i = 0;
-    let mut emergency_stop_flag = false;
 
     loop {
         if let Ok(Some((_, _, size))) =
             eth.try_receive_udp(&mut robot.spi_eth, SOCKET_UDP, &mut buffer) {
 
-            for b in buffer.iter() {
+            /*for b in buffer.iter() {
                 block!(robot.debug.write(*b)).expect("Failed to send data");
             }
 
             let mut buffer_4 = [0u8; 64];
             for b in size.numtoa(10, &mut buffer_4).iter() {
                 block!(robot.debug.write(*b)).expect("Failed to send data");
-            }
+            }*/
 
-            match NavigationFrame::from_json_slice(&buffer[1..size]) {
+            match NavigationFrame::from_json_slice(&buffer[0..size]) {
                 Ok(frame) => {
 
                     if frame.counter != nav_state.counter {
@@ -288,7 +285,7 @@ fn main() -> ! {
         i += 1;
 
         if i % 1000 == 0 {
-            write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right.invert(), coords);
+            //write_info(&mut robot.debug, qeis.0, -qeis.1, cmd_left.invert(), cmd_right.invert(), coords);
             i = 0;
         }
     }
