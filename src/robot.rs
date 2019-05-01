@@ -175,7 +175,6 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     }
 }
 
-
 #[exception]
 fn HardFault(ef: &ExceptionFrame) -> ! {
     unsafe {
