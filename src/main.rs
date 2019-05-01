@@ -169,7 +169,7 @@ fn exec_command<L, R>(
     pos_pid: &mut RealWorldPid<L, R>,
     command: NavigationCommand,
     arg1: u16,
-    _arg2: u16,
+    arg2: u16,
 ) where
     L: Qei<Count = u16>,
     R: Qei<Count = u16>,
@@ -198,7 +198,8 @@ fn exec_command<L, R>(
             pos_pid.rotate(diff);
         }
         NavigationCommand::TurnRelative => {
-            pos_pid.rotate(arg1 as f32 / 10.0);
+            let multiplier = if arg2 == 1 { -1.0 } else { 1.0 };
+            pos_pid.rotate(multiplier * arg1 as f32 / 10.0);
         }
         NavigationCommand::EmergencyStop => {}
         NavigationCommand::Stop => {
@@ -221,10 +222,10 @@ fn main() -> ! {
         left_wheel_coef: 1.0,
         right_wheel_coef: -1.0,
         inter_axial_length: 223.0,
-        pos_kp: 1.0,
+        pos_kp: 30.0,
         pos_kd: 0.0,
-        orient_kp: 1.0,
-        orient_kd: 1.0,
+        orient_kp: 30.0,
+        orient_kd: 0.0,
         max_output: robot.max_duty / 4,
     };
 
@@ -318,7 +319,7 @@ fn main() -> ! {
                 qeis.0,
                 -qeis.1,
                 cmd_left.invert(),
-                cmd_right.invert(),
+                cmd_right,
                 nav_state_copy.position,
             );
         }
@@ -363,7 +364,7 @@ fn TIM1_UP() {
                 (*pid_ptr).stop();
             } else {
                 (*motor_left_ptr).apply_command(cmd_left.invert());
-                (*motor_right_ptr).apply_command(cmd_right.invert());
+                (*motor_right_ptr).apply_command(cmd_right);
             }
 
             (*nav_state_ptr).position = (*pid_ptr).get_position();
