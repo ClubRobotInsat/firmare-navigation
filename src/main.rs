@@ -21,6 +21,7 @@ use librobot::navigation::{Command, PIDParameters, RealWorldPid, Coord};
 use librobot::transmission::navigation::{NavigationFrame, NavigationCommand};
 use librobot::transmission::Jsonizable;
 use librobot::transmission::eth::{ init_eth, listen_on, SOCKET_UDP };
+use librobot::transmission::id::{ID_NAVIGATION, ELEC_LISTENING_PORT, INFO_LISTENING_PORT};
 use librobot::units::MilliMeter;
 use nb::block;
 use numtoa::NumToA;
@@ -30,7 +31,8 @@ use robot::init_peripherals;
 use stm32f1xx_hal as hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pill.
 use w5500::*;
 use heapless::consts::U2048;
-use librobot::transmission::id::{ID_NAVIGATION, ELEC_LISTENING_PORT, INFO_LISTENING_PORT};
+use core::f32;
+
 // use librobot::transmission::MessageKind::Navigation;
 
 use crate::robot::Robot;
@@ -104,6 +106,7 @@ fn write_info(
 struct NavigationState {
     command: NavigationCommand,
     counter: u16,
+    asserv_on_off: bool,
     blocked: bool,
     moving_done: bool,
 }
@@ -133,11 +136,16 @@ fn send_navigation_state<T, K, L, R>(
         command: nav_state.command,
         counter: nav_state.counter,
 
-        asserv_on_off: true,
-        reset: true,
+        asserv_on_off: nav_state.asserv_on_off,
+        reset: false,
         led: true,
         args_cmd1: 0,
         args_cmd2: 0,
+
+        max_lin_speed: 0,
+        max_ang_speed: 0,
+        lin_accuracy: 0,
+        ang_accuracy: 0,
     };
 
     if let Ok(data) = frame.to_string::<U2048>() {
@@ -166,27 +174,29 @@ fn exec_command<L, R>(
 {
     match command {
         NavigationCommand::GoForward => {
-            pos_pid.forward(MilliMeter(arg1 as i64 / 10));
+            pos_pid.forward(arg1 as f32 / 10.0);
         },
         NavigationCommand::GoBackward => {
-            pos_pid.backward(MilliMeter(arg1 as i64 / 10));
+            pos_pid.backward(arg1 as f32 / 10.0);
         },
         NavigationCommand::TurnAbsolute => {
-            let current_angle = pos_pid.get_angle();
-            let diff = arg1 as i64 / 10 - current_angle;
+            let current_angle = pos_pid.get_angle() as f32;
+            let mut diff = arg1 as f32 / 10.0 - current_angle;
+
+            // Find the best angle
+            let pi = core::f32::consts::PI;
+            while diff < -pi {
+                diff += pi * 2.0;
+            }
+
+            while diff >= pi {
+                diff -= pi * 2.0;
+            }
 
             pos_pid.rotate(diff);
-
-            // TODO ensure minimal rotation
-            if diff < 0 {
-
-            }
-            else {
-
-            }
         },
         NavigationCommand::TurnRelative => {
-            pos_pid.rotate(arg1 as i64 / 10);
+            pos_pid.rotate(arg1 as f32 / 10.0);
         },
         NavigationCommand::EmergencyStop => { },
         NavigationCommand::Stop => {
@@ -204,11 +214,11 @@ fn main() -> ! {
 
     // Config du PID
     let pid_parameters = PIDParameters {
-        coder_radius: MilliMeter(31),
+        coder_radius: 31.0,
         ticks_per_turn: 4096,
         left_wheel_coef: 1.0,
         right_wheel_coef: -1.0,
-        inter_axial_length: MilliMeter(223),
+        inter_axial_length: 223.0,
         pos_kp: 1.0,
         pos_kd: 0.0,
         orient_kp: 1.0,
@@ -219,6 +229,7 @@ fn main() -> ! {
     let mut nav_state = NavigationState {
         command: NavigationCommand::DoNothing,
         counter: 0,
+        asserv_on_off: true,
         blocked: false,
         moving_done: true,
     };
@@ -277,6 +288,7 @@ fn main() -> ! {
         if nav_state.command == EmergencyStop {
             robot.motor_left.apply_command(Command::Front(0));
             robot.motor_right.apply_command(Command::Front(0));
+            pos_pid.stop();
         }
         else {
             robot.motor_left.apply_command(cmd_left.invert());
