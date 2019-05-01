@@ -5,8 +5,7 @@
 
 mod robot;
 
-use crate::f103::Peripherals;
-use crate::f103::SPI1;
+use crate::f103::{interrupt, Peripherals, SPI1};
 use crate::hal::stm32 as f103;
 use crate::hal::spi::Spi;
 use cortex_m::Peripherals as CortexPeripherals;
@@ -35,9 +34,10 @@ use core::f32;
 
 // use librobot::transmission::MessageKind::Navigation;
 
-use crate::robot::Robot;
+use crate::robot::{Robot, QeiLeft, QeiRight, MotorLeft, MotorRight};
 use crate::robot::SpiPins;
 use librobot::transmission::navigation::NavigationCommand::EmergencyStop;
+use core::ptr::null_mut;
 
 //  Black Pill starts execution at function main().
 
@@ -226,6 +226,8 @@ fn main() -> ! {
         max_output: robot.max_duty / 4,
     };
 
+    let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
+
     let mut nav_state = NavigationState {
         command: NavigationCommand::DoNothing,
         counter: 0,
@@ -233,8 +235,6 @@ fn main() -> ! {
         blocked: false,
         moving_done: true,
     };
-
-    let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
 
     // ==== Config de l'ethernet
 
@@ -247,9 +247,17 @@ fn main() -> ! {
 
     listen_on(&mut eth, &mut robot.spi_eth, ELEC_LISTENING_PORT + ID_NAVIGATION, SOCKET_UDP);
 
-    let mut buffer = [0; 2048];
+    // ==== Autorisation du timer
 
-    let mut i = 0;
+    unsafe {
+        motor_left_ptr = &mut robot.motor_left as *mut MotorLeft;
+        motor_right_ptr = &mut robot.motor_right as *mut MotorRight;
+        pid_ptr = &mut pos_pid as *mut RealWorldPid<QeiLeft, QeiRight>;
+        nav_state_ptr = &mut nav_state as *mut NavigationState;
+        initialized = true;
+    }
+
+    let mut buffer = [0; 2048];
 
     loop {
         if let Ok(Some((_, _, size))) =
@@ -278,26 +286,10 @@ fn main() -> ! {
             }
 
             send_navigation_state(&mut robot.spi_eth, &mut eth, &pos_pid, &nav_state);
-        }
 
-        pos_pid.update();
-        let (cmd_left, cmd_right) = pos_pid.get_command();
-        let qeis = pos_pid.get_qei_ticks();
-        let coords = pos_pid.get_position();
+            let qeis = pos_pid.get_qei_ticks();
+            let coords = pos_pid.get_position();
 
-        if nav_state.command == EmergencyStop {
-            robot.motor_left.apply_command(Command::Front(0));
-            robot.motor_right.apply_command(Command::Front(0));
-            pos_pid.stop();
-        }
-        else {
-            robot.motor_left.apply_command(cmd_left.invert());
-            robot.motor_right.apply_command(cmd_right.invert());
-        }
-
-        i += 1;
-
-        if i % 1000 == 0 {
             /*write_info(
                 &mut robot.debug,
                 qeis.0,
@@ -306,7 +298,51 @@ fn main() -> ! {
                 cmd_right,
                 coords,
             );*/
-            i = 0;
+        }
+    }
+}
+
+#[allow(non_upper_case_globals)]
+static mut pid_ptr: *mut RealWorldPid<QeiLeft, QeiRight> = null_mut();
+#[allow(non_upper_case_globals)]
+static mut nav_state_ptr: *mut NavigationState = null_mut();
+#[allow(non_upper_case_globals)]
+static mut motor_left_ptr: *mut MotorLeft = null_mut();
+#[allow(non_upper_case_globals)]
+static mut motor_right_ptr: *mut MotorRight = null_mut();
+
+#[allow(non_upper_case_globals)]
+static mut initialized: bool = false;
+
+#[interrupt]
+fn TIM1_UP() {
+    static mut COUNTER: u16 = 0;
+
+    unsafe {
+        (*f103::TIM1::ptr()).sr.write(|w| w.uif().clear_bit());
+
+        // Blinking led
+        if *COUNTER >= 200 {
+            (*f103::GPIOC::ptr()).bsrr.write(|w| w.br13().set_bit());
+        } else {
+            (*f103::GPIOC::ptr()).bsrr.write(|w| w.bs13().set_bit());
+        }
+        *COUNTER = (*COUNTER + 1) % 400;
+
+        // PID
+        if initialized {
+            (*pid_ptr).update();
+            let (cmd_left, cmd_right) = (*pid_ptr).get_command();
+
+            if (*nav_state_ptr).command == EmergencyStop {
+                (*motor_left_ptr).apply_command(Command::Front(0));
+                (*motor_right_ptr).apply_command(Command::Front(0));
+                (*pid_ptr).stop();
+            }
+            else {
+                (*motor_left_ptr).apply_command(cmd_left.invert());
+                (*motor_right_ptr).apply_command(cmd_right.invert());
+            }
         }
     }
 }
