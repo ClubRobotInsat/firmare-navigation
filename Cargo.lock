@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "heapless"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "as-slice 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -158,13 +158,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "librobot"
 version = "0.2.0"
-source = "git+https://github.com/ClubRobotInsat/librobot#32f4708ffca9b6bbe6deab4369ca475bbf71c25a"
+source = "git+https://github.com/ClubRobotInsat/librobot#6d7692327568eebb32eaa39121d82dcff028513d"
 dependencies = [
  "arrayvec 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.36 (registry+https://github.com/rust-lang/crates.io-index)",
  "cty 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "embedded-hal 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "heapless 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "heapless 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "libm 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "nb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "qei 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -284,7 +284,7 @@ name = "serde-json-core"
 version = "0.0.1"
 source = "git+https://github.com/japaric/serde-json-core#f2481c142f72119b9314088c80f7814c323c4a09"
 dependencies = [
- "heapless 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "heapless 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.90 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -312,7 +312,7 @@ dependencies = [
  "cortex-m-rt 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "cortex-m-semihosting 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "embedded-hal 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "heapless 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "heapless 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "librobot 0.2.0 (git+https://github.com/ClubRobotInsat/librobot)",
  "nb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "numtoa 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -415,7 +415,7 @@ dependencies = [
 "checksum generic-array 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8107dafa78c80c848b71b60133954b4a58609a3a1a5f9af037ecc7f67280f369"
 "checksum generic-array 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3c0f28c2f5bfb5960175af447a2da7c18900693738343dc896ffbcabd9839592"
 "checksum hash32 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "12d790435639c06a7b798af9e1e331ae245b7ef915b92f70a39b4cf8c00686af"
-"checksum heapless 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "82b7c5c8d508f4fc7db5dcc045029962dedf7a2b15bf4371044bfff62ef73c37"
+"checksum heapless 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "e1ae80bbc62401ae8096976857172507cadbd2200f36670e5144634360a05959"
 "checksum libm 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "03c0bb6d5ce1b5cc6fd0578ec1cbc18c9d88b5b591a5c7c1d6c6175e266a0819"
 "checksum librobot 0.2.0 (git+https://github.com/ClubRobotInsat/librobot)" = "<none>"
 "checksum nb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b1411551beb3c11dedfb0a90a0fa256b47d28b9ec2cdff34c25a2fa59e45dbdc"

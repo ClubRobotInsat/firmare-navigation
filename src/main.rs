@@ -103,6 +103,9 @@ fn write_info(
     }
 }
 
+static BLOCKED_COUNTER_THRESHOLD:u16 = 10;
+static MOVING_DONE_COUNTER_THRESHOLD:u16 = 10;
+
 #[derive(Clone, Copy)]
 struct NavigationState {
     // Command
@@ -113,9 +116,47 @@ struct NavigationState {
     position: Coord,
     angle: i64,
 
-    asserv_on_off: bool,
-    blocked: bool,
-    moving_done: bool,
+    // Precision
+    lin_accuracy: f32,
+    ang_accuracy: f32,
+
+    asserv_active: bool,
+    blocked_counter: u16,
+    moving_done_counter: u16,
+}
+
+impl NavigationState {
+    fn inc_blocked(&mut self) {
+        if self.blocked_counter < BLOCKED_COUNTER_THRESHOLD * 2 {
+            self.blocked_counter += 1;
+        }
+    }
+
+    fn dec_blocked(&mut self) {
+        if self.blocked_counter < 3 {
+            self.blocked_counter = 0;
+        }
+        else {
+            self.blocked_counter -= 1;
+        }
+    }
+
+    // On incremente et quand le compteur arrive à MOVING_DONE_COUNTER_THRESHOLD le mouvement est
+    // terminé.
+    fn inc_moving_done(&mut self) {
+        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
+            self.moving_done_counter += 1;
+        }
+    }
+
+    fn dec_moving_done(&mut self) {
+        if self.moving_done_counter < 3 {
+            self.moving_done_counter = 0;
+        }
+        else if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
+            self.moving_done_counter -= 1;
+        }
+    }
 }
 
 fn send_navigation_state<T, K>(
@@ -130,14 +171,14 @@ fn send_navigation_state<T, K>(
         x: nav_state.position.x.as_millimeters() as i32 * 10,
         y: nav_state.position.y.as_millimeters() as i32 * 10,
 
-        blocked: nav_state.blocked,
-        moving_done: nav_state.moving_done,
+        blocked: nav_state.blocked_counter >= BLOCKED_COUNTER_THRESHOLD,
+        moving_done: nav_state.moving_done_counter >= MOVING_DONE_COUNTER_THRESHOLD,
 
         // read-only
         command: nav_state.command,
         counter: nav_state.counter,
 
-        asserv_on_off: nav_state.asserv_on_off,
+        asserv_on_off: nav_state.asserv_active,
         reset: false,
         led: true,
         args_cmd1: 0,
@@ -221,7 +262,7 @@ fn main() -> ! {
         ticks_per_turn: 4096,
         left_wheel_coef: 1.0,
         right_wheel_coef: -1.0,
-        inter_axial_length: 223.0,
+        inter_axial_length: 296.0,
         pos_kp: 30.0,
         pos_kd: 0.0,
         orient_kp: 30.0,
@@ -236,9 +277,11 @@ fn main() -> ! {
         counter: 0,
         position: pos_pid.get_position(),
         angle: pos_pid.get_angle(),
-        asserv_on_off: true,
-        blocked: false,
-        moving_done: true,
+        lin_accuracy: 0.0,
+        ang_accuracy: 0.0,
+        asserv_active: true,
+        blocked_counter: 0,
+        moving_done_counter: 0,
     };
 
     // ==== Config de l'ethernet
@@ -294,6 +337,9 @@ fn main() -> ! {
                         nav_state.counter = frame.counter;
                         nav_state.command = frame.command;
 
+                        nav_state.blocked_counter = 0;
+                        nav_state.moving_done_counter = 0;
+
                         exec_command(
                             &mut pos_pid,
                             frame.command,
@@ -318,7 +364,7 @@ fn main() -> ! {
                 &mut robot.debug,
                 qeis.0,
                 -qeis.1,
-                cmd_left.invert(),
+                cmd_left,
                 cmd_right,
                 nav_state_copy.position,
             );
@@ -356,14 +402,32 @@ fn TIM1_UP() {
         // PID
         if enabled {
             (*pid_ptr).update();
+
+            // Check if robot is blocked / has terminated its movement
+            if (*pid_ptr).is_robot_blocked(10, 0.1) {
+                (*nav_state_ptr).inc_blocked();
+            }
+            else {
+                (*nav_state_ptr).dec_blocked();
+            }
+
+            if (*pid_ptr).is_goal_reached((*nav_state_ptr).lin_accuracy, (*nav_state_ptr).ang_accuracy) {
+                (*nav_state_ptr).inc_moving_done();
+            }
+            else {
+                (*nav_state_ptr).dec_moving_done();
+            }
+
+
+            // Update command
             let (cmd_left, cmd_right) = (*pid_ptr).get_command();
 
-            if (*nav_state_ptr).command == EmergencyStop {
+            if (*nav_state_ptr).command == EmergencyStop || !(*nav_state_ptr).asserv_active {
                 (*motor_left_ptr).apply_command(Command::Front(0));
                 (*motor_right_ptr).apply_command(Command::Front(0));
                 (*pid_ptr).stop();
             } else {
-                (*motor_left_ptr).apply_command(cmd_left.invert());
+                (*motor_left_ptr).apply_command(cmd_left);
                 (*motor_right_ptr).apply_command(cmd_right);
             }
 
