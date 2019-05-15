@@ -20,8 +20,8 @@ use hal::serial::Tx;
 use heapless::consts::U2048;
 use librobot::navigation::{Command, Coord, PIDParameters, RealWorldPid};
 use librobot::transmission::eth::{init_eth, listen_on, SOCKET_UDP};
-use librobot::transmission::id::{ELEC_LISTENING_PORT, ID_NAVIGATION, INFO_LISTENING_PORT};
-use librobot::transmission::navigation::{NavigationCommand, NavigationFrame};
+use librobot::transmission::id::{ELEC_LISTENING_PORT, ID_NAVIGATION, INFO_LISTENING_PORT, ID_NAVIGATION_PARAMETERS};
+use librobot::transmission::navigation::{NavigationCommand, NavigationFrame, NavigationParametersFrame};
 use librobot::transmission::Jsonizable;
 use librobot::units::MilliMeter;
 use nb::block;
@@ -302,6 +302,14 @@ fn main() -> ! {
         SOCKET_UDP,
     );
 
+    listen_on(
+        &mut eth,
+        &mut robot.spi_eth,
+        ELEC_LISTENING_PORT + ID_NAVIGATION_PARAMETERS,
+        Socket::Socket7,
+    );
+    // TODO Créer une constante pour la socket de NavigationParameters
+
     // ==== Autorisation du timer
 
     unsafe {
@@ -361,6 +369,24 @@ fn main() -> ! {
             send_navigation_state(&mut robot.spi_eth, &mut eth, &nav_state_copy);
         }
 
+        // Parametres
+        if let Ok(Some((_, _, size))) =
+            eth.try_receive_udp(&mut robot.spi_eth, Socket::Socket7, &mut buffer)
+        {
+            match NavigationParametersFrame::from_json_slice(&buffer[0..size]) {
+                Ok(frame) => {
+                    unsafe {
+                        enabled = false;
+                    }
+                    pos_pid.set_params(&PIDParameters::from_frame(&pid_parameters, &frame));
+                    unsafe {
+                        enabled = true;
+                    }
+                }
+                Err(e) => panic!("{:#?}", e),
+            }
+        }
+
         dbg_counter += 1;
         let qeis = pos_pid.get_qei_ticks();
         let (cmd_left, cmd_right) = pos_pid.get_command();
@@ -388,6 +414,9 @@ static mut motor_left_ptr: *mut MotorLeft = null_mut();
 #[allow(non_upper_case_globals)]
 static mut motor_right_ptr: *mut MotorRight = null_mut();
 
+// Système permettant à l'execution principale de désactiver le calcul du PID pendant
+// la réception d'une trame.
+// TODO remplacer par des mutex ?
 #[allow(non_upper_case_globals)]
 static mut enabled: bool = false;
 
