@@ -313,6 +313,8 @@ fn main() -> ! {
     }
 
     let mut buffer = [0; 2048];
+    let debug_period = 1000;
+    let mut dbg_counter = 0;
 
     loop {
         if let Ok(Some((_, _, size))) =
@@ -351,23 +353,28 @@ fn main() -> ! {
                 Err(e) => panic!("{:#?}", e),
             }
             let nav_state_copy = nav_state;
-            let qeis = pos_pid.get_qei_ticks();
-            let (cmd_left, cmd_right) = pos_pid.get_command();
 
             unsafe {
                 enabled = true;
             }
 
             send_navigation_state(&mut robot.spi_eth, &mut eth, &nav_state_copy);
+        }
 
+        dbg_counter += 1;
+        let qeis = pos_pid.get_qei_ticks();
+        let (cmd_left, cmd_right) = pos_pid.get_command();
+
+        if dbg_counter == debug_period {
             write_info(
                 &mut robot.debug,
                 qeis.0,
                 -qeis.1,
                 cmd_left,
                 cmd_right,
-                nav_state_copy.position,
+                nav_state.position,
             );
+            dbg_counter = 0;
         }
     }
 }
