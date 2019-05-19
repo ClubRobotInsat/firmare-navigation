@@ -115,12 +115,14 @@ struct NavigationState {
     // Position
     position: Coord,
     angle: i64,
+    wheel_dist: (f32, f32),
 
     // Precision
     lin_accuracy: f32,
     ang_accuracy: f32,
 
-    asserv_active: bool,
+    // Asserv linéaire / angulaire
+    asserv_active: (bool, bool),
     blocked_counter: u16,
     moving_done_counter: u16,
 }
@@ -170,6 +172,8 @@ fn send_navigation_state<T, K>(
         angle: nav_state.angle as i32 * 10,
         x: nav_state.position.x.as_millimeters() as i32 * 10,
         y: nav_state.position.y.as_millimeters() as i32 * 10,
+        left_dist: (nav_state.wheel_dist.0 * 10.0) as i32,
+        right_dist: (nav_state.wheel_dist.1 * 10.0) as i32,
 
         blocked: nav_state.blocked_counter >= BLOCKED_COUNTER_THRESHOLD,
         moving_done: nav_state.moving_done_counter >= MOVING_DONE_COUNTER_THRESHOLD,
@@ -178,16 +182,9 @@ fn send_navigation_state<T, K>(
         command: nav_state.command,
         counter: nav_state.counter,
 
-        asserv_on_off: nav_state.asserv_active,
-        reset: false,
-        led: true,
-        args_cmd1: 0,
-        args_cmd2: 0,
-
-        max_lin_speed: 0,
-        max_ang_speed: 0,
-        lin_accuracy: 0,
-        ang_accuracy: 0,
+        asserv_lin: nav_state.asserv_active.0,
+        asserv_ang: nav_state.asserv_active.1,
+        ..Default::default()
     };
 
     if let Ok(data) = frame.to_string::<U2048>() {
@@ -279,7 +276,8 @@ fn main() -> ! {
         angle: pos_pid.get_angle(),
         lin_accuracy: 0.0,
         ang_accuracy: 0.0,
-        asserv_active: true,
+        wheel_dist: (0.0, 0.0),
+        asserv_active:(true, true),
         blocked_counter: 0,
         moving_done_counter: 0,
     };
@@ -458,7 +456,7 @@ fn TIM1_UP() {
             // Update command
             let (cmd_left, cmd_right) = (*pid_ptr).get_command();
 
-            if (*nav_state_ptr).command == EmergencyStop || !(*nav_state_ptr).asserv_active {
+            if (*nav_state_ptr).command == EmergencyStop {
                 (*motor_left_ptr).apply_command(Command::Front(0));
                 (*motor_right_ptr).apply_command(Command::Front(0));
                 (*pid_ptr).stop();
@@ -469,6 +467,7 @@ fn TIM1_UP() {
 
             (*nav_state_ptr).position = (*pid_ptr).get_position();
             (*nav_state_ptr).angle = (*pid_ptr).get_angle();
+            (*nav_state_ptr).wheel_dist = (*pid_ptr).get_wheel_dist();
         }
     }
 }
