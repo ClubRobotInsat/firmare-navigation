@@ -257,8 +257,8 @@ fn main() -> ! {
     let pid_parameters = PIDParameters {
         coder_radius: 31.0,
         ticks_per_turn: 4096,
-        left_wheel_coef: 1.0,
-        right_wheel_coef: -1.0,
+        left_wheel_coef: -1.0,
+        right_wheel_coef: 1.0,
         inter_axial_length: 296.0,
         pos_kp: 30.0,
         pos_kd: 0.0,
@@ -307,6 +307,12 @@ fn main() -> ! {
         Socket::Socket7,
     );
     // TODO Créer une constante pour la socket de NavigationParameters
+
+    /*
+    for b in b"Start\n\r" {
+        block!(robot.debug.write(*b)).expect("Failed to use serial");
+    }
+    */
 
     // ==== Autorisation du timer
 

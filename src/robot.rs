@@ -17,8 +17,8 @@ use stm32f1xx_hal::device::Interrupt::TIM1_UP;
 
 use qei::QeiManager; //  Stack frame for exception handling.
 
-pub type QeiLeft = stm32f1xx_hal::qei::Qei<TIM4, (PB6<Input<Floating>>, PB7<Input<Floating>>)>;
-pub type QeiRight = stm32f1xx_hal::qei::Qei<TIM2, (PA0<Input<Floating>>, PA1<Input<Floating>>)>;
+pub type QeiLeft = stm32f1xx_hal::qei::Qei<TIM2, (PA0<Input<Floating>>, PA1<Input<Floating>>)>;
+pub type QeiRight = stm32f1xx_hal::qei::Qei<TIM4, (PB6<Input<Floating>>, PB7<Input<Floating>>)>;
 
 type QeiManagerLeft = qei::QeiManager<QeiLeft>;
 type QeiManagerRight = qei::QeiManager<QeiRight>;
@@ -128,13 +128,13 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let left_engine_dir = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
     let right_engine_dir = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
 
-    let qei_right = QeiManager::new(Qei::tim2(
+    let qei_left = QeiManager::new(Qei::tim2(
         chip.TIM2,
         (pa0, pa1),
         &mut afio.mapr,
         &mut rcc.apb1,
     ));
-    let qei_left = QeiManager::new(Qei::tim4(
+    let qei_right = QeiManager::new(Qei::tim4(
         chip.TIM4,
         (pb6, pb7),
         &mut afio.mapr,
