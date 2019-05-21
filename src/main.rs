@@ -20,8 +20,12 @@ use hal::serial::Tx;
 use heapless::consts::U2048;
 use librobot::navigation::{Command, Coord, PIDParameters, RealWorldPid};
 use librobot::transmission::eth::{init_eth, listen_on, SOCKET_UDP};
-use librobot::transmission::id::{ELEC_LISTENING_PORT, ID_NAVIGATION, INFO_LISTENING_PORT, ID_NAVIGATION_PARAMETERS};
-use librobot::transmission::navigation::{NavigationCommand, NavigationFrame, NavigationParametersFrame};
+use librobot::transmission::id::{
+    ELEC_LISTENING_PORT, ID_NAVIGATION, ID_NAVIGATION_PARAMETERS, INFO_LISTENING_PORT,
+};
+use librobot::transmission::navigation::{
+    NavigationCommand, NavigationFrame, NavigationParametersFrame,
+};
 use librobot::transmission::Jsonizable;
 use librobot::units::MilliMeter;
 use nb::block;
@@ -103,8 +107,8 @@ fn write_info(
     }
 }
 
-static BLOCKED_COUNTER_THRESHOLD:u16 = 10;
-static MOVING_DONE_COUNTER_THRESHOLD:u16 = 10;
+static BLOCKED_COUNTER_THRESHOLD: u16 = 50;
+static MOVING_DONE_COUNTER_THRESHOLD: u16 = 10;
 
 #[derive(Clone, Copy)]
 struct NavigationState {
@@ -137,8 +141,7 @@ impl NavigationState {
     fn dec_blocked(&mut self) {
         if self.blocked_counter < 3 {
             self.blocked_counter = 0;
-        }
-        else {
+        } else {
             self.blocked_counter -= 1;
         }
     }
@@ -154,18 +157,14 @@ impl NavigationState {
     fn dec_moving_done(&mut self) {
         if self.moving_done_counter < 3 {
             self.moving_done_counter = 0;
-        }
-        else if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
+        } else if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
             self.moving_done_counter -= 1;
         }
     }
 }
 
-fn send_navigation_state<T, K>(
-    spi: &mut Spi<T, K>,
-    eth: &mut W5500,
-    nav_state: &NavigationState,
-) where
+fn send_navigation_state<T, K>(spi: &mut Spi<T, K>, eth: &mut W5500, nav_state: &NavigationState)
+where
     Spi<T, K>: FullDuplex<u8>,
 {
     let frame = NavigationFrame {
@@ -220,20 +219,7 @@ fn exec_command<L, R>(
             pos_pid.backward(arg1 as f32 / 10.0);
         }
         NavigationCommand::TurnAbsolute => {
-            let current_angle = pos_pid.get_angle() as f32;
-            let mut diff = arg1 as f32 / 10.0 - current_angle;
-
-            // Find the best angle
-            let pi = core::f32::consts::PI;
-            while diff < -pi {
-                diff += pi * 2.0;
-            }
-
-            while diff >= pi {
-                diff -= pi * 2.0;
-            }
-
-            pos_pid.rotate(diff);
+            pos_pid.rotate_absolute(arg1 as f32 / 10.0);
         }
         NavigationCommand::TurnRelative => {
             let multiplier = if arg2 == 1 { -1.0 } else { 1.0 };
@@ -265,6 +251,8 @@ fn main() -> ! {
         orient_kp: 30.0,
         orient_kd: 0.0,
         max_output: robot.max_duty / 4,
+        command_threshold: 100,
+        distance_threshold: 0.1,
     };
 
     let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
@@ -277,7 +265,7 @@ fn main() -> ! {
         lin_accuracy: 0.0,
         ang_accuracy: 0.0,
         wheel_dist: (0.0, 0.0),
-        asserv_active:(true, true),
+        asserv_active: (true, true),
         blocked_counter: 0,
         moving_done_counter: 0,
     };
@@ -361,6 +349,11 @@ fn main() -> ! {
                             frame.args_cmd2,
                         );
                     }
+
+                    nav_state.asserv_active = (frame.asserv_lin, frame.asserv_ang);
+
+                    nav_state.ang_accuracy = frame.ang_accuracy as f32 / 10.0;
+                    nav_state.lin_accuracy = frame.lin_accuracy as f32 / 10.0;
                 }
                 Err(e) => panic!("{:#?}", e),
             }
@@ -441,23 +434,31 @@ fn TIM1_UP() {
 
         // PID
         if enabled {
+            (*pid_ptr).enable_asserv(
+                (*nav_state_ptr).asserv_active.0,
+                (*nav_state_ptr).asserv_active.1,
+            );
             (*pid_ptr).update();
 
-            // Check if robot is blocked / has terminated its movement
-            if (*pid_ptr).is_robot_blocked(10, 0.1) {
-                (*nav_state_ptr).inc_blocked();
-            }
-            else {
-                (*nav_state_ptr).dec_blocked();
-            }
-
-            if (*pid_ptr).is_goal_reached((*nav_state_ptr).lin_accuracy, (*nav_state_ptr).ang_accuracy) {
+            // Check if robot has terminated its movement
+            if (*pid_ptr)
+                .is_goal_reached((*nav_state_ptr).lin_accuracy, (*nav_state_ptr).ang_accuracy)
+            {
                 (*nav_state_ptr).inc_moving_done();
-            }
-            else {
+            } else {
                 (*nav_state_ptr).dec_moving_done();
             }
 
+            // Check if robot is blocked every 100 ms
+            if (*COUNTER) % 100 == 0 {
+                (*pid_ptr).update_blocking();
+
+                if (*pid_ptr).is_robot_blocked() {
+                    (*nav_state_ptr).inc_blocked();
+                } else {
+                    (*nav_state_ptr).dec_blocked();
+                }
+            }
 
             // Update command
             let (cmd_left, cmd_right) = (*pid_ptr).get_command();
