@@ -248,7 +248,7 @@ fn main() -> ! {
         inter_axial_length: 296.0,
         pos_kp: 30.0,
         pos_kd: 0.0,
-        orient_kp: 30.0,
+        orient_kp: 60.0,
         orient_kd: 0.0,
         max_output: robot.max_duty / 4,
         command_threshold: 100,

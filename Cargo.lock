@@ -158,7 +158,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "librobot"
 version = "0.2.0"
-source = "git+https://github.com/ClubRobotInsat/librobot#27dc7ae60e285e39637b5129818d847afe200f85"
+source = "git+https://github.com/ClubRobotInsat/librobot#afb09fc732ce3dbd7786f8a6a5f5cdbceb20bc2c"
 dependencies = [
  "arrayvec 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
