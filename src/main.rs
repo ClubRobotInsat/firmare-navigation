@@ -246,7 +246,7 @@ fn main() -> ! {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.0,
         inter_axial_length: 296.0,
-        pos_kp: 30.0,
+        pos_kp: 60.0,
         pos_kd: 0.0,
         orient_kp: 60.0,
         orient_kd: 0.0,
@@ -333,6 +333,18 @@ fn main() -> ! {
                 Ok(frame) => {
                     unsafe {
                         enabled = false;
+                    }
+
+                    if frame.reset {
+                        let pos = Coord {
+                            x: MilliMeter(frame.x as i64 / 10),
+                            y: MilliMeter(frame.y as i64 / 10),
+                        };
+                        let angle = frame.angle as i64 / 10;
+
+                        pos_pid.set_position_and_angle(pos, angle);
+                        nav_state.position = pos;
+                        nav_state.angle = angle;
                     }
 
                     if frame.counter != nav_state.counter {
