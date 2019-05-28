@@ -143,8 +143,8 @@ fn write_info(
     }
 }
 
-static BLOCKED_COUNTER_THRESHOLD: u16 = 50;
-static MOVING_DONE_COUNTER_THRESHOLD: u16 = 10;
+static BLOCKED_COUNTER_THRESHOLD: u16 = 3;
+static MOVING_DONE_COUNTER_THRESHOLD: u16 = 20;
 
 #[derive(Clone, Copy)]
 struct NavigationState {
@@ -169,16 +169,14 @@ struct NavigationState {
 
 impl NavigationState {
     fn inc_blocked(&mut self) {
-        if self.blocked_counter < BLOCKED_COUNTER_THRESHOLD * 2 {
+        if self.blocked_counter < BLOCKED_COUNTER_THRESHOLD {
             self.blocked_counter += 1;
         }
     }
 
     fn dec_blocked(&mut self) {
-        if self.blocked_counter < 3 {
+        if self.blocked_counter < BLOCKED_COUNTER_THRESHOLD {
             self.blocked_counter = 0;
-        } else {
-            self.blocked_counter -= 1;
         }
     }
 
@@ -191,9 +189,7 @@ impl NavigationState {
     }
 
     fn dec_moving_done(&mut self) {
-        if self.moving_done_counter < 3 {
-            self.moving_done_counter = 0;
-        } else if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
+        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
             self.moving_done_counter -= 1;
         }
     }
