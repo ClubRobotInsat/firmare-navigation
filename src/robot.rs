@@ -1,5 +1,5 @@
 use crate::f103;
-use crate::f103::{interrupt, Peripherals, SPI1, TIM2, TIM3, TIM4, USART3};
+use crate::f103::{Peripherals, SPI1, TIM2, TIM3, TIM4, USART3};
 use crate::hal::delay::Delay;
 use crate::hal::gpio::{gpioa::*, gpiob::*, Alternate, Floating, Input, Output, PushPull};
 use crate::hal::prelude::*;
@@ -17,16 +17,16 @@ use stm32f1xx_hal::device::Interrupt::TIM1_UP;
 
 use qei::QeiManager; //  Stack frame for exception handling.
 
-type QeiLeft =
-    (qei::QeiManager<stm32f1xx_hal::qei::Qei<TIM4, (PB6<Input<Floating>>, PB7<Input<Floating>>)>>);
+pub type QeiLeft = stm32f1xx_hal::qei::Qei<TIM2, (PA0<Input<Floating>>, PA1<Input<Floating>>)>;
+pub type QeiRight = stm32f1xx_hal::qei::Qei<TIM4, (PB6<Input<Floating>>, PB7<Input<Floating>>)>;
 
-type QeiRight =
-    (qei::QeiManager<stm32f1xx_hal::qei::Qei<TIM2, (PA0<Input<Floating>>, PA1<Input<Floating>>)>>);
+type QeiManagerLeft = qei::QeiManager<QeiLeft>;
+type QeiManagerRight = qei::QeiManager<QeiRight>;
 
-type MotorLeft = Motor<Pwm<TIM3, C3>, PA12<Output<PushPull>>>;
-type MotorRight = Motor<Pwm<TIM3, C4>, PA3<Output<PushPull>>>;
+pub type MotorLeft = Motor<Pwm<TIM3, C3>, PA12<Output<PushPull>>>;
+pub type MotorRight = Motor<Pwm<TIM3, C4>, PA3<Output<PushPull>>>;
 
-type SpiPins = (
+pub type SpiPins = (
     PA5<Alternate<PushPull>>,
     PA6<Input<Floating>>,
     PA7<Alternate<PushPull>>,
@@ -35,9 +35,9 @@ type SpiPins = (
 pub struct Robot<K, P> {
     pub spi_eth: Spi<K, P>,
     pub delay: Delay,
-    pub qei_left: QeiLeft,
-    pub qei_right: QeiRight,
-    pub cs: PB13<Output<PushPull>>,
+    pub qei_left: QeiManagerLeft,
+    pub qei_right: QeiManagerRight,
+    pub cs: PA11<Output<PushPull>>,
     pub motor_right: MotorRight,
     pub motor_left: MotorLeft,
     pub max_duty: u16,
@@ -70,7 +70,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     // Configuration des PINS
 
     // Slave select, on le fixe à un état bas (on n'en a pas besoin, une seule communication)
-    let mut cs = gpiob.pb13.into_push_pull_output(&mut gpiob.crh);
+    let mut cs = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
     cs.set_low();
 
     let sclk = gpioa.pa5.into_alternate_push_pull(&mut gpioa.crl);
@@ -115,7 +115,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let (debug_tx, _) = debug_usart.split();
 
     // Clignotement de la led
-    let mut t_led = Timer::tim1(chip.TIM1, 5.hz(), clocks, &mut rcc.apb2);
+    let mut t_led = Timer::tim1(chip.TIM1, 1000.hz(), clocks, &mut rcc.apb2);
     t_led.listen(Event::Update);
 
     // Config des QEI
@@ -128,13 +128,13 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let left_engine_dir = gpioa.pa12.into_push_pull_output(&mut gpioa.crh);
     let right_engine_dir = gpioa.pa3.into_push_pull_output(&mut gpioa.crl);
 
-    let qei_right = QeiManager::new(Qei::tim2(
+    let qei_left = QeiManager::new(Qei::tim2(
         chip.TIM2,
         (pa0, pa1),
         &mut afio.mapr,
         &mut rcc.apb1,
     ));
-    let qei_left = QeiManager::new(Qei::tim4(
+    let qei_right = QeiManager::new(Qei::tim4(
         chip.TIM4,
         (pb6, pb7),
         &mut afio.mapr,
@@ -145,7 +145,7 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
     let (mut pwm_left_pb0, mut pwm_right_pb1) = chip.TIM3.pwm(
         (pb0, pb1),
         &mut afio.mapr,
-        10000.hz(),
+        20000.hz(),
         clocks,
         &mut rcc.apb1,
     );
@@ -172,20 +172,6 @@ pub fn init_peripherals(chip: Peripherals, mut cortex: CortexPeripherals) -> Rob
         motor_left,
         max_duty: (max_duty / 2 + max_duty / 4),
         debug: debug_tx,
-    }
-}
-
-#[interrupt]
-fn TIM1_UP() {
-    static mut TOOGLE: bool = false;
-    unsafe {
-        (*f103::TIM1::ptr()).sr.write(|w| w.uif().clear_bit());
-        if *TOOGLE {
-            (*f103::GPIOC::ptr()).bsrr.write(|w| w.br13().set_bit());
-        } else {
-            (*f103::GPIOC::ptr()).bsrr.write(|w| w.bs13().set_bit());
-        }
-        *TOOGLE = !(*TOOGLE);
     }
 }
 
