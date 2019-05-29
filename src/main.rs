@@ -53,7 +53,7 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.00118,
         inter_axial_length: 338.1,
-        pos_kp: 60.0,
+        pos_kp: 160.0,
         pos_kd: 0.0,
         orient_kp: 60.0,
         orient_kd: 0.0,
@@ -189,7 +189,8 @@ impl NavigationState {
     }
 
     fn dec_moving_done(&mut self) {
-        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD && self.moving_done_counter != 0 {
+        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD && self.moving_done_counter != 0
+        {
             self.moving_done_counter -= 1;
         }
     }

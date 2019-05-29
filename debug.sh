@@ -4,7 +4,7 @@ Green='\033[0;42m'
 Red='\033[0;41m'
 End='\033[0;0m'
 
-cargo build --release
+#cargo build --release
 
 EXECUTABLE_FILE="target/thumbv7m-none-eabi/debug/stm32-black-pill-rust"
 check_gdb() {
