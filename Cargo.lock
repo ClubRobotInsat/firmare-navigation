@@ -276,7 +276,7 @@ dependencies = [
  "panic-semihosting 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pid_control 0.7.2 (git+https://github.com/gbip/pid_control-rs?branch=genericity)",
  "qei 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "stm32f1xx-hal 0.2.1 (git+https://github.com/stm32-rs/stm32f1xx-hal)",
+ "stm32f1xx-hal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "w5500 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -294,7 +294,7 @@ dependencies = [
 [[package]]
 name = "stm32f1xx-hal"
 version = "0.2.1"
-source = "git+https://github.com/stm32-rs/stm32f1xx-hal#49ee9cb4175a531a39fc4c58c62d077e690c1d00"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cast 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cortex-m 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -390,7 +390,7 @@ dependencies = [
 "checksum serde-json-core 0.1.0 (git+https://github.com/gbip/serde-json-core)" = "<none>"
 "checksum serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)" = "bb6eabf4b5914e88e24eea240bb7c9f9a2cbc1bbbe8d961d381975ec3c6b806c"
 "checksum stm32f1 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5c9a197094ef680c79c5018701f0c03f0dc673cbf4a0df944371d3f83c71161d"
-"checksum stm32f1xx-hal 0.2.1 (git+https://github.com/stm32-rs/stm32f1xx-hal)" = "<none>"
+"checksum stm32f1xx-hal 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c69099c8ceba8a0279cb8c028c5a2dd1effc7bf5031e511335ba06d3660ff82f"
 "checksum syn 0.15.29 (registry+https://github.com/rust-lang/crates.io-index)" = "1825685f977249735d510a242a6727b46efe914bb67e38d30c071b1b72b1d5c2"
 "checksum typenum 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "612d636f949607bdf9b123b4a6f6d966dedf3ff669f7f045890d3a4a73948169"
 "checksum unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"

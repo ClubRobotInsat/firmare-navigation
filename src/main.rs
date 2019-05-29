@@ -7,6 +7,7 @@ mod robot;
 
 use crate::f103::Peripherals;
 use crate::hal::stm32 as f103;
+use crate::robot::Robot;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
 use embedded_hal::blocking::delay::DelayMs;
@@ -25,6 +26,38 @@ use stm32f1xx_hal as hal; //  Hardware Abstraction Layer (HAL) for STM32 Blue Pi
 use w5500::*;
 
 //  Black Pill starts execution at function main().
+
+#[cfg(feature = "primary")]
+fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
+    PIDParameters {
+        coder_radius: MilliMeter(31),
+        ticks_per_turn: 4096,
+        left_wheel_coef: 1.0,
+        right_wheel_coef: -1.0,
+        inter_axial_length: MilliMeter(223),
+        pos_kp: 1.0,
+        pos_kd: 0.0,
+        orient_kp: 1.0,
+        orient_kd: 1.0,
+        max_output: robot.max_duty / 4,
+    }
+}
+
+#[cfg(feature = "secondary")]
+fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
+    PIDParameters {
+        coder_radius: MilliMeter(31),
+        ticks_per_turn: 4096,
+        left_wheel_coef: 1.0,
+        right_wheel_coef: -1.0,
+        inter_axial_length: MilliMeter(223),
+        pos_kp: 1.0,
+        pos_kd: 0.0,
+        orient_kp: 1.0,
+        orient_kd: 1.0,
+        max_output: robot.max_duty / 4,
+    }
+}
 
 /// Envoie les informations de debug sur la pate PA9 du stm32 en utilisant le périphérique USART
 ///
@@ -102,19 +135,7 @@ fn main() -> ! {
     );
 
     // Config du PID
-    let pid_parameters = PIDParameters {
-        coder_radius: MilliMeter(31),
-        ticks_per_turn: 4096,
-        left_wheel_coef: 1.0,
-        right_wheel_coef: -1.0,
-        inter_axial_length: MilliMeter(223),
-        pos_kp: 1.0,
-        pos_kd: 0.0,
-        orient_kp: 1.0,
-        orient_kd: 1.0,
-        max_output: robot.max_duty / 4,
-    };
-
+    let pid_parameters = get_pid_parameters(&robot);
     let mut pos_pid = RealWorldPid::new(robot.qei_left, robot.qei_right, &pid_parameters);
 
     // ==== Config de l'ethernet

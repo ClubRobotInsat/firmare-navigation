@@ -42,10 +42,14 @@ version = "1.0.1"
 
 [dependencies.stm32f1xx-hal]
 features = ["rt","stm32f103"]
-git = "https://github.com/stm32-rs/stm32f1xx-hal"
-
+version = "0.2"
 [profile.release]
 codegen-units = 1
 debug = true
 lto = true
 incremental = false
+
+[features]
+
+primary= []
+secondary= []
