@@ -48,11 +48,11 @@ use librobot::transmission::navigation::NavigationCommand::EmergencyStop;
 #[cfg(feature = "primary")]
 fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
     PIDParameters {
-        coder_radius: 31.0,
+        coder_radius: 64.1165 / 2.,
         ticks_per_turn: 4096,
         left_wheel_coef: -1.0,
-        right_wheel_coef: 1.0,
-        inter_axial_length: 296.0,
+        right_wheel_coef: 1.00118,
+        inter_axial_length: 338.1,
         pos_kp: 60.0,
         pos_kd: 0.0,
         orient_kp: 60.0,
@@ -143,7 +143,7 @@ fn write_info(
     }
 }
 
-static BLOCKED_COUNTER_THRESHOLD: u16 = 3;
+static BLOCKED_COUNTER_THRESHOLD: u16 = 40;
 static MOVING_DONE_COUNTER_THRESHOLD: u16 = 20;
 
 #[derive(Clone, Copy)]
@@ -189,7 +189,7 @@ impl NavigationState {
     }
 
     fn dec_moving_done(&mut self) {
-        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD {
+        if self.moving_done_counter < MOVING_DONE_COUNTER_THRESHOLD && self.moving_done_counter != 0 {
             self.moving_done_counter -= 1;
         }
     }
@@ -215,6 +215,8 @@ where
 
         asserv_lin: nav_state.asserv_active.0,
         asserv_ang: nav_state.asserv_active.1,
+        lin_accuracy: (nav_state.lin_accuracy * 10.0) as u16,
+        ang_accuracy: (nav_state.ang_accuracy * 10.0) as u16,
         ..Default::default()
     };
 
@@ -415,15 +417,16 @@ fn main() -> ! {
             }
         }
 
-        dbg_counter += 1;
+        // Uncomment to debug through TX
+        // dbg_counter += 1;
         let qeis = pos_pid.get_qei_ticks();
         let (cmd_left, cmd_right) = pos_pid.get_command();
 
         if dbg_counter == debug_period {
             write_info(
                 &mut robot.debug,
-                qeis.0,
-                -qeis.1,
+                pos_pid.get_params().inter_axial_length as i64, //qeis.0,
+                (pos_pid.get_params().right_wheel_coef * 100.0) as i64, //-qeis.1,
                 cmd_left,
                 cmd_right,
                 nav_state.position,
