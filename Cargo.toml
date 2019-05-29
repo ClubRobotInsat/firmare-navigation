@@ -52,5 +52,5 @@ incremental = false
 
 [features]
 
-primary= []
-secondary= []
+primary= ["librobot/primary"]
+secondary= ["librobot/secondary"]

@@ -300,8 +300,8 @@ fn main() -> ! {
     init_eth(
         &mut eth,
         &mut robot.spi_eth,
-        &MacAddress::new(0x02, 0x01, 0x02, 0x03, 0x04, ID_NAVIGATION as u8),
-        &IpAddress::new(192, 168, 1, ID_NAVIGATION as u8),
+        ID_NAVIGATION as u8,
+        ID_NAVIGATION as u8,
     );
 
     listen_on(
