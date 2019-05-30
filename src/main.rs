@@ -55,8 +55,10 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         inter_axial_length: 296.0,
         pos_kp: 160.0,
         pos_kd: 0.0,
+        pos_ki: 0.0,
         orient_kp: 60.0,
         orient_kd: 0.0,
+        orient_ki: 0.0,
         max_output: robot.max_duty / 4,
         command_threshold: 100,
         distance_threshold: 0.1,
@@ -71,10 +73,12 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.0,
         inter_axial_length: 296.0,
-        pos_kp: 60.0,
+        pos_kp: 30.0,
+        pos_ki: 0.0,
         pos_kd: 0.0,
-        orient_kp: 60.0,
+        orient_kp: 30.0,
         orient_kd: 0.0,
+        orient_ki: 0.0,
         max_output: robot.max_duty / 4,
         command_threshold: 100,
         distance_threshold: 0.1,
@@ -419,15 +423,15 @@ fn main() -> ! {
         }
 
         // Uncomment to debug through TX
-        // dbg_counter += 1;
+        dbg_counter += 1;
         let qeis = pos_pid.get_qei_ticks();
         let (cmd_left, cmd_right) = pos_pid.get_command();
 
         if dbg_counter == debug_period {
             write_info(
                 &mut robot.debug,
-                pos_pid.get_params().inter_axial_length as i64, //qeis.0,
-                (pos_pid.get_params().right_wheel_coef * 100.0) as i64, //-qeis.1,
+                -qeis.0, //qeis.0,
+                qeis.1,  //-qeis.1,
                 cmd_left,
                 cmd_right,
                 nav_state.position,
