@@ -52,7 +52,7 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         ticks_per_turn: 4096,
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.00118,
-        inter_axial_length: 338.1,
+        inter_axial_length: 296.0,
         pos_kp: 160.0,
         pos_kd: 0.0,
         orient_kp: 60.0,
