@@ -19,7 +19,7 @@ use hal::device::USART3;
 use hal::serial::Tx;
 use heapless::consts::U2048;
 use librobot::navigation::{Command, Coord, PIDParameters, RealWorldPid};
-use librobot::transmission::eth::{init_eth, listen_on, SOCKET_UDP};
+use librobot::transmission::eth::{init_eth, listen_on, SOCKET_UDP, get_main_computer_ip};
 use librobot::transmission::id::{
     ELEC_LISTENING_PORT, ID_NAVIGATION, ID_NAVIGATION_PARAMETERS, INFO_LISTENING_PORT,
 };
@@ -230,7 +230,7 @@ where
             spi,
             SOCKET_UDP,
             ELEC_LISTENING_PORT + ID_NAVIGATION,
-            &IpAddress::new(192, 168, 1, 254),
+            &get_main_computer_ip(),
             INFO_LISTENING_PORT + ID_NAVIGATION,
             &data.as_bytes(),
         ) {
