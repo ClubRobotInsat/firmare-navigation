@@ -9,6 +9,7 @@ use crate::f103::{interrupt, Peripherals, SPI1};
 use crate::hal::spi::Spi;
 use crate::hal::stm32 as f103;
 use core::f32;
+use cortex_m::asm;
 use cortex_m::Peripherals as CortexPeripherals;
 use cortex_m_rt::entry;
 use embedded_hal::blocking::delay::DelayMs;
@@ -53,13 +54,13 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.00118,
         inter_axial_length: 296.0,
-        pos_kp: 8.0,
+        pos_kp: 15.0,
         pos_kd: 0.0,
-        pos_ki: 0.001,
-        orient_kp: 2.0,
+        pos_ki: 0.001, 
+        orient_kp: 17.,
         orient_kd: 0.0,
-        orient_ki: 0.001,
-        max_output: robot.max_duty * 2 / 3,
+        orient_ki: 0.0004,
+        max_output: robot.max_duty * 1 / 2,
         command_threshold: 100,
         distance_threshold: 0.1,
     }
