@@ -53,12 +53,12 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.00118,
         inter_axial_length: 296.0,
-        pos_kp: 12.0,
+        pos_kp: 8.0,
         pos_kd: 0.0,
-        pos_ki: 0.0,
-        orient_kp: 10.0,
+        pos_ki: 0.001,
+        orient_kp: 2.0,
         orient_kd: 0.0,
-        orient_ki: 0.0,
+        orient_ki: 0.001,
         max_output: robot.max_duty * 2 / 3,
         command_threshold: 100,
         distance_threshold: 0.1,
@@ -68,7 +68,7 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
 #[cfg(feature = "secondary")]
 fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
     PIDParameters {
-        coder_radius: 63.7782,
+        coder_radius: 63.7782 / 2.,
         ticks_per_turn: 4096,
         left_wheel_coef: -1.0,
         right_wheel_coef: 0.997215,
@@ -147,7 +147,7 @@ fn write_info(
     }
 }
 
-static BLOCKED_COUNTER_THRESHOLD: u16 = 40;
+static BLOCKED_COUNTER_THRESHOLD: u16 = 800;
 static MOVING_DONE_COUNTER_THRESHOLD: u16 = 20;
 
 #[derive(Clone, Copy)]
@@ -423,7 +423,7 @@ fn main() -> ! {
         }
 
         // Uncomment to debug through TX
-        dbg_counter += 1;
+        // dbg_counter += 1;
         let qeis = pos_pid.get_qei_ticks();
         let (cmd_left, cmd_right) = pos_pid.get_command();
 
