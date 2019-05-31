@@ -54,13 +54,18 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         left_wheel_coef: -1.0,
         right_wheel_coef: 1.00118,
         inter_axial_length: 296.0,
-        pos_kp: 15.0,
-        pos_kd: 0.0,
-        pos_ki: 0.001, 
-        orient_kp: 17.,
-        orient_kd: 0.0,
-        orient_ki: 0.0004,
-        max_output: robot.max_duty * 1 / 2,
+
+        //POS
+        pos_kp: 300.0,
+        pos_kd: 40000.0, /*0.028535714285714*/
+        pos_ki: 0.0,     /*0.114142857142857*/
+        max_output: robot.max_duty * 2 / 3,
+
+        //ANGLE
+        orient_kp: 300.,
+        orient_kd: 20000.0,
+        orient_ki: 0.0,
+        max_angle_output: robot.max_duty * 3 / 8,
         command_threshold: 100,
         distance_threshold: 0.1,
     }
@@ -71,9 +76,10 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
     PIDParameters {
         coder_radius: 63.7782 / 2.,
         ticks_per_turn: 4096,
+        max_angle_output: robot.max_duty * 1 / 4,
         left_wheel_coef: -1.0,
         right_wheel_coef: 0.997215,
-        inter_axial_length: 296.0,
+        inter_axial_length: 190.0,
         pos_kp: 30.0,
         pos_ki: 0.0,
         pos_kd: 0.0,
