@@ -19,7 +19,7 @@ use hal::device::USART3;
 use hal::serial::Tx;
 use heapless::consts::U2048;
 use librobot::navigation::{Command, Coord, PIDParameters, RealWorldPid};
-use librobot::transmission::eth::{init_eth, listen_on, SOCKET_UDP, get_main_computer_ip};
+use librobot::transmission::eth::{get_main_computer_ip, init_eth, listen_on, SOCKET_UDP};
 use librobot::transmission::id::{
     ELEC_LISTENING_PORT, ID_NAVIGATION, ID_NAVIGATION_PARAMETERS, INFO_LISTENING_PORT,
 };
@@ -68,10 +68,10 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
 #[cfg(feature = "secondary")]
 fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
     PIDParameters {
-        coder_radius: 31.0,
+        coder_radius: 63.7782,
         ticks_per_turn: 4096,
         left_wheel_coef: -1.0,
-        right_wheel_coef: 1.0,
+        right_wheel_coef: 0.997215,
         inter_axial_length: 296.0,
         pos_kp: 30.0,
         pos_ki: 0.0,
