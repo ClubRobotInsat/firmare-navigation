@@ -61,6 +61,7 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         orient_kd: 0.0,
         orient_ki: 0.0004,
         max_output: robot.max_duty * 1 / 2,
+        max_angle_output: robot.max_duty * 1 / 2,
         command_threshold: 100,
         distance_threshold: 0.1,
     }
@@ -81,6 +82,7 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         orient_kd: 0.0,
         orient_ki: 0.0,
         max_output: robot.max_duty / 4,
+        max_angle_output: robot.max_duty / 4,
         command_threshold: 100,
         distance_threshold: 0.1,
     }
