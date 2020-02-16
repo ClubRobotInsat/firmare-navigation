@@ -59,18 +59,18 @@ fn get_pid_parameters<T, U>(robot: &Robot<T, U>) -> PIDParameters {
         pos_kp: 10.0,
         pos_kd: 0.0, /*0.028535714285714*/
         pos_ki: 0.0,     /*0.114142857142857*/
-        pos_speed_kp: 0.1,
-        max_lin_speed: 1000.0,
-        max_lin_acc: 1000.0,
+        pos_speed_kp: 10.0,
+        max_lin_speed: 10000.0,
+        max_lin_acc: 100000.0,
         max_output: robot.max_duty * 2 / 3,
 
         //ANGLE
         orient_kp: 10.0,
         orient_kd: 0.0,
         orient_ki: 0.0,
-        orient_speed_kp: 0.1,
-        max_ang_speed: 1000.0,
-        max_ang_acc: 1000.0,
+        orient_speed_kp: 10.0,
+        max_ang_speed: 10000.0,
+        max_ang_acc: 100000.0,
         max_angle_output: robot.max_duty * 3 / 8,
 
         te: 0.001,
